@@ -28,6 +28,8 @@ class Settings:
     bucket_tutorial: str
     signed_url_ttl_seconds: int
     session_cookie_max_age_seconds: int
+    cors_origins: tuple[str, ...]
+    cookie_secure: bool
 
 
 def load_settings() -> Settings:
@@ -42,6 +44,8 @@ def load_settings() -> Settings:
         bucket_tutorial=_env("BUCKET_TUTORIAL", "tutorial"),
         signed_url_ttl_seconds=int(_env("SIGNED_URL_TTL_SECONDS", "60")),
         session_cookie_max_age_seconds=int(_env("SESSION_COOKIE_MAX_AGE_SECONDS", "14400")),
+        cors_origins=tuple(s.strip() for s in _env("CORS_ORIGINS", "http://localhost:5173").split(",") if s.strip()),
+        cookie_secure=_env("COOKIE_SECURE", "false").lower() in ("true", "1", "yes"),
     )
 
 

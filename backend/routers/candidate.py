@@ -17,6 +17,7 @@ from config import (
     OBVIOUS_GOOD_ANCHORS_PER_STEP,
     POOLS,
     QUIZ_PASS_THRESHOLD,
+    QUIZ_QUESTION_COUNT,
     UNIQUE_ITEMS_PER_STEP,
     load_settings,
 )
@@ -78,7 +79,7 @@ def _quiz_answered(candidate_id: str) -> bool:
         .eq("candidate_id", candidate_id)
         .execute()
     )
-    return (res.count or 0) >= 5
+    return (res.count or 0) >= QUIZ_QUESTION_COUNT
 
 
 def _candidate_decisions_for_step(candidate_id: str, pool: str) -> list[dict]:
@@ -282,6 +283,7 @@ def start(token: str, body: StartRequest, response: Response) -> StateResponse:
         value=new_session,
         max_age=settings.session_cookie_max_age_seconds,
         httponly=True,
+        secure=settings.cookie_secure,
         samesite="lax",
         path=f"/api/test/{token}",
     )
@@ -322,8 +324,8 @@ def submit_quiz(token: str, body: QuizRequest, session_id: str | None = Cookie(d
         .execute()
     )
     questions = qres.data or []
-    if len(questions) != 5:
-        raise HTTPException(500, f"Expected 5 quiz questions, got {len(questions)}")
+    if len(questions) != QUIZ_QUESTION_COUNT:
+        raise HTTPException(500, f"Expected {QUIZ_QUESTION_COUNT} quiz questions, got {len(questions)}")
 
     score = 0
     rows_to_insert = []

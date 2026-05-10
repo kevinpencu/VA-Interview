@@ -8,15 +8,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from config import load_settings
 from routers import candidate as candidate_router
 from routers import manager as manager_router
 
 app = FastAPI(title="VA Interview Test")
 
-# CORS — frontend dev server runs on :5173
+# CORS — origins configured via CORS_ORIGINS env (comma-separated)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=list(load_settings().cors_origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

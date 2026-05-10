@@ -62,6 +62,16 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [pendingJustification, item.id]);
 
+  useEffect(() => {
+    function onBeforeUnload(e) {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
   async function submitJustification(text) {
     await candidateApi.justification(token, pendingJustification.decisionId, text);
     setPendingJustification(null);
