@@ -25,12 +25,14 @@ from models import (
     DecisionResponse,
     DecisionResponseNext,
     EventRequest,
+    JustificationRequest,
     QuizRequest,
     QuizResponse,
     StartRequest,
     StateResponse,
     StateResponseItem,
 )
+from scoring import ScoringInput, StepStats, compute_recommendation
 from storage import signed_url_for_item
 from supabase_client import get_supabase
 
@@ -445,3 +447,118 @@ def decision(token: str, body: DecisionRequest, session_id: str | None = Cookie(
         needs_justification=forced_now,
         next=DecisionResponseNext(item=next_item_payload),
     )
+
+
+@router.post("/justification", response_model=StateResponse)
+def justification(token: str, body: JustificationRequest, session_id: str | None = Cookie(default=None)) -> StateResponse:
+    candidate = _get_candidate(token)
+    if candidate is None:
+        raise HTTPException(404, "Invalid invite link")
+    verify_candidate_session(candidate, session_id)
+    # Confirm the decision belongs to this candidate
+    dec = (
+        get_supabase().table("candidate_decisions")
+        .select("id,candidate_id,forced_justification")
+        .eq("id", body.decision_id).single().execute().data
+    )
+    if dec is None or dec["candidate_id"] != candidate["id"]:
+        raise HTTPException(404, "Unknown decision")
+    if not dec["forced_justification"]:
+        raise HTTPException(409, "Decision did not require justification")
+    get_supabase().table("candidate_decisions").update({
+        "justification": body.justification,
+    }).eq("id", body.decision_id).execute()
+    return _resolve_state(_get_candidate(token), session_id)
+
+
+@router.post("/event", response_model=StateResponse)
+def event(token: str, body: EventRequest, session_id: str | None = Cookie(default=None)) -> StateResponse:
+    candidate = _get_candidate(token)
+    if candidate is None:
+        raise HTTPException(404, "Invalid invite link")
+    verify_candidate_session(candidate, session_id)
+    get_supabase().table("candidate_events").insert({
+        "candidate_id": candidate["id"],
+        "kind": body.kind,
+        "meta": body.meta,
+    }).execute()
+    return _resolve_state(_get_candidate(token), session_id)
+
+
+def _build_scoring_input(cid: str) -> ScoringInput:
+    decisions = (
+        get_supabase().table("candidate_decisions")
+        .select("*").eq("candidate_id", cid).execute()
+    ).data or []
+    items_by_id = {
+        i["id"]: i for i in (
+            get_supabase().table("test_items").select("*").execute()
+        ).data or []
+    }
+    quiz = (
+        get_supabase().table("candidate_quiz_answers")
+        .select("is_correct").eq("candidate_id", cid).execute()
+    ).data or []
+    events = (
+        get_supabase().table("candidate_events")
+        .select("kind").eq("candidate_id", cid).eq("kind", "tab_blur").execute()
+    ).data or []
+
+    def _step_stats(pool: str) -> StepStats:
+        step_decisions = [d for d in decisions if d["pool"] == pool]
+        if not step_decisions:
+            return StepStats(0.0, 0, 0, 0)
+        correct = sum(1 for d in step_decisions if d["is_correct"])
+        accuracy = correct / len(step_decisions)
+        # Anchor scoring (only first show — exclude duplicates)
+        non_dupes = [d for d in step_decisions if d["duplicate_of"] is None]
+        obvious_bad_caught = sum(
+            1 for d in non_dupes
+            if items_by_id[d["item_id"]]["anchor_kind"] == "obvious_bad" and d["is_correct"]
+        )
+        obvious_good_caught = sum(
+            1 for d in non_dupes
+            if items_by_id[d["item_id"]]["anchor_kind"] == "obvious_good" and d["is_correct"]
+        )
+        # Duplicate consistency: same answer on dupe pair
+        dupes = [d for d in step_decisions if d["duplicate_of"] is not None]
+        dupe_consistency = 0
+        for d in dupes:
+            original = next((x for x in step_decisions if x["id"] == d["duplicate_of"]), None)
+            if original is not None and original["answer"] == d["answer"]:
+                dupe_consistency += 1
+        return StepStats(
+            accuracy=accuracy,
+            obvious_bad_caught=obvious_bad_caught,
+            obvious_good_caught=obvious_good_caught,
+            duplicate_consistency=dupe_consistency,
+        )
+
+    return ScoringInput(
+        quiz_score=sum(1 for q in quiz if q["is_correct"]),
+        tab_switches=len(events),
+        tiktok=_step_stats("tiktok"),
+        nano_banana=_step_stats("nano_banana"),
+        kling=_step_stats("kling"),
+    )
+
+
+@router.post("/submit", response_model=StateResponse)
+def submit(token: str, session_id: str | None = Cookie(default=None)) -> StateResponse:
+    candidate = _get_candidate(token)
+    if candidate is None:
+        raise HTTPException(404, "Invalid invite link")
+    verify_candidate_session(candidate, session_id)
+    cid = candidate["id"]
+    progress = _step_progress(cid)
+    if any(progress[p] < ITEMS_PER_STEP for p in POOLS):
+        raise HTTPException(409, "Test not complete")
+    inp = _build_scoring_input(cid)
+    rec, reasons = compute_recommendation(inp)
+    get_supabase().table("candidates").update({
+        "submitted_at": _now_iso(),
+        "link_used": True,
+        "recommendation": rec,
+        "auto_fail_reasons": reasons,
+    }).eq("id", cid).execute()
+    return _resolve_state(_get_candidate(token), session_id)
