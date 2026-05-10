@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from routers import candidate as candidate_router
+from routers import manager as manager_router
 
 app = FastAPI(title="VA Interview Test")
 
@@ -28,6 +29,7 @@ def health() -> dict:
 
 
 app.include_router(candidate_router.router)
+app.include_router(manager_router.router)
 
 
 # Static frontend (built into ../frontend/dist by Dockerfile / npm run build)
