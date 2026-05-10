@@ -113,3 +113,12 @@ CREATE TABLE IF NOT EXISTS candidate_events (
 
 CREATE INDEX IF NOT EXISTS candidate_events_lookup_idx
   ON candidate_events(candidate_id, kind, occurred_at);
+
+-- ============================================================
+-- additional FK indexes (perf for manager detail joins)
+-- ============================================================
+CREATE INDEX IF NOT EXISTS candidate_decisions_item_idx
+  ON candidate_decisions(item_id);
+
+CREATE INDEX IF NOT EXISTS candidate_decisions_duplicate_of_idx
+  ON candidate_decisions(duplicate_of) WHERE duplicate_of IS NOT NULL;
