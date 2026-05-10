@@ -1,7 +1,7 @@
 """Shared fixtures: mocked Supabase client + FastAPI TestClient."""
 from __future__ import annotations
 
-import os
+import sys
 from unittest.mock import MagicMock
 
 import pytest
@@ -17,17 +17,31 @@ def _env(monkeypatch):
     monkeypatch.setenv("MANAGER_EMAIL", "manager@example.com")
 
 
+def _patch_get_supabase_everywhere(monkeypatch, mock):
+    """Patch the get_supabase name in supabase_client AND in every router
+    module that imported it (since `from x import y` binds the name at
+    import time and a setattr on `x` won't affect those bindings)."""
+    import supabase_client
+    if hasattr(supabase_client.get_supabase, "cache_clear"):
+        supabase_client.get_supabase.cache_clear()
+    monkeypatch.setattr(supabase_client, "get_supabase", lambda: mock)
+    for mod_name, mod in list(sys.modules.items()):
+        if mod_name.startswith("routers.") and getattr(mod, "get_supabase", None) is not None:
+            monkeypatch.setattr(mod, "get_supabase", lambda: mock)
+
+
 @pytest.fixture
 def mock_supabase(monkeypatch):
-    """Replace get_supabase() with a MagicMock. Tests configure return values per call."""
+    """Replace get_supabase() with a MagicMock everywhere it has been imported."""
     mock = MagicMock(name="supabase_client")
-    import supabase_client
-    monkeypatch.setattr(supabase_client, "get_supabase", lambda: mock)
-    # Also patch in the module that imports it
+    _patch_get_supabase_everywhere(monkeypatch, mock)
     return mock
 
 
 @pytest.fixture
-def client(mock_supabase) -> TestClient:
+def client(mock_supabase, monkeypatch) -> TestClient:
     from main import app
+    # main.py may have transitively imported routers — re-run the consumer
+    # patch now that any new router modules are in sys.modules.
+    _patch_get_supabase_everywhere(monkeypatch, mock_supabase)
     return TestClient(app)
