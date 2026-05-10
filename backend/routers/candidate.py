@@ -218,14 +218,18 @@ def _next_pool(pool: str) -> str | None:
 
 
 def _resolve_state(candidate: dict | None, cookie: str | None) -> StateResponse:
-    if candidate is None or candidate.get("link_used"):
+    if candidate is None:
+        return StateResponse(state="invalid")
+    # Submitted (or quiz-failed-and-finalized) candidates see the thank-you page
+    # regardless of cookie, even from a new tab.
+    if candidate.get("submitted_at"):
+        return StateResponse(state="submitted")
+    if candidate.get("link_used"):
         return StateResponse(state="invalid")
     if not candidate.get("started_at"):
         return StateResponse(state="needs_name")
     if cookie != candidate.get("session_id"):
         return StateResponse(state="session_in_use")
-    if candidate.get("submitted_at"):
-        return StateResponse(state="submitted")
     cid = candidate["id"]
     if not _has_event(cid, "tutorial_view"):
         return StateResponse(state="needs_tutorial")
