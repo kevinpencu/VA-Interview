@@ -1,10 +1,9 @@
 """FastAPI entrypoint. Mounts routers and serves the built frontend."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -33,5 +32,8 @@ if FRONTEND_DIST.is_dir():
 
     @app.get("/{path:path}")
     def serve_spa(path: str):
-        # SPA fallback: any non-API path returns index.html
+        # SPA fallback: any non-API path returns index.html.
+        # Explicitly 404 /api/ so future routers can't be shadowed by mount order.
+        if path.startswith("api/"):
+            raise HTTPException(status_code=404)
         return FileResponse(FRONTEND_DIST / "index.html")
