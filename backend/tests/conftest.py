@@ -2,7 +2,21 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock
+
+# Ensure backend/ is FIRST on sys.path so `import main` finds backend/main.py,
+# not any stray main.py in the parent project root (e.g. PyCharm boilerplate).
+_BACKEND = str(Path(__file__).resolve().parent.parent)
+if _BACKEND in sys.path:
+    sys.path.remove(_BACKEND)
+sys.path.insert(0, _BACKEND)
+# If pytest's rootdir-based path resolution already imported the wrong `main`,
+# evict it so the next import resolves against backend/main.py.
+_existing_main = sys.modules.get("main")
+if _existing_main is not None and getattr(_existing_main, "__file__", "") and \
+        not _existing_main.__file__.startswith(_BACKEND):
+    del sys.modules["main"]
 
 import pytest
 from fastapi.testclient import TestClient
@@ -40,6 +54,16 @@ def mock_supabase(monkeypatch):
 
 @pytest.fixture
 def client(mock_supabase, monkeypatch) -> TestClient:
+    # Re-assert backend/ at the front of sys.path right before importing main,
+    # in case pytest's later path tweaks pushed the project root ahead of us.
+    if sys.path[0] != _BACKEND:
+        if _BACKEND in sys.path:
+            sys.path.remove(_BACKEND)
+        sys.path.insert(0, _BACKEND)
+    _stale = sys.modules.get("main")
+    if _stale is not None and getattr(_stale, "__file__", "") and \
+            not _stale.__file__.startswith(_BACKEND):
+        del sys.modules["main"]
     from main import app
     # main.py may have transitively imported routers — re-run the consumer
     # patch now that any new router modules are in sys.modules.

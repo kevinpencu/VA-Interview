@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from routers import candidate as candidate_router
+
 app = FastAPI(title="VA Interview Test")
 
 # CORS — frontend dev server runs on :5173
@@ -23,6 +25,9 @@ app.add_middleware(
 @app.get("/api/health")
 def health() -> dict:
     return {"ok": True}
+
+
+app.include_router(candidate_router.router)
 
 
 # Static frontend (built into ../frontend/dist by Dockerfile / npm run build)
