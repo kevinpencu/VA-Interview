@@ -273,6 +273,7 @@ function TikTokPage({ manifest, manifestState }) {
 // =====================================================================
 
 function NanoBananaPage({ manifest, manifestState }) {
+  const refs = manifest?.model_reference || [];
   return (
     <article>
       <h1 style={{ marginTop: 0 }}>Step 2 — Judging a Nano-banana generation</h1>
@@ -281,6 +282,31 @@ function NanoBananaPage({ manifest, manifestState }) {
         The output should be the same frame but with <strong>our model</strong> instead of the original girl.
         Your job is to confirm Nano Banana did it right.
       </p>
+
+      {refs.length > 0 && (
+        <section className="card" style={{ marginTop: 16 }}>
+          <h2 style={{ marginTop: 0 }}>This is our model</h2>
+          <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+            Memorize her face, body, and especially her bust size. Every generation you accept needs to look like the same person.
+          </p>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${Math.min(refs.length, 4)}, 1fr)`,
+            gap: 12,
+            marginTop: 12,
+          }}>
+            {refs.map((r, i) => (
+              <img
+                key={i}
+                src={safeUrl(r.url)}
+                alt=""
+                loading="lazy"
+                style={{ width: "100%", borderRadius: 6, display: "block" }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <h2 style={{ marginTop: 24 }}>What to compare, in order of priority</h2>
       <ol>

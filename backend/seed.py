@@ -514,6 +514,8 @@ class LessonDiscovery:
     pools: dict[str, dict[str, list[dict]]] = field(
         default_factory=lambda: {p: {"good": [], "bad": []} for p in POOLS}
     )
+    # Standalone reference photos of the model (no good/bad — just identity refs).
+    model_reference: list[dict] = field(default_factory=list)
     # Flat list of (storage_path, local_path) tuples for the uploader.
     uploads: list[tuple[str, Path]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -558,6 +560,20 @@ def discover_lessons(lessons_dir: Path) -> LessonDiscovery:
                     "storage_path": storage_path,
                 })
                 d.uploads.append((storage_path, p))
+
+    # Optional: Reference Photos/ folder — standalone identity refs of the model.
+    ref_folder = lessons_dir / "Reference Photos"
+    if ref_folder.is_dir():
+        ref_exts = {".png", ".jpg", ".jpeg", ".webp"}
+        for p in sorted(ref_folder.iterdir()):
+            if p.is_file() and p.suffix.lower() in ref_exts:
+                storage_path = f"reference_photos/{p.name}"
+                d.model_reference.append({
+                    "type": "image",
+                    "path": p,
+                    "storage_path": storage_path,
+                })
+                d.uploads.append((storage_path, p))
     return d
 
 
@@ -584,6 +600,10 @@ def build_manifest(d: LessonDiscovery, url_for: callable) -> dict:
                         "original_url": url_for(e["original_storage_path"]),
                         "generation_url": url_for(e["ai_storage_path"]),
                     })
+    manifest["model_reference"] = [
+        {"type": "image", "url": url_for(e["storage_path"])}
+        for e in d.model_reference
+    ]
     return manifest
 
 
@@ -601,6 +621,7 @@ def _print_lesson_summary(d: LessonDiscovery) -> None:
     print("Lesson discovery summary:")
     for pool in POOLS:
         print(f"  {pool}: good={s[pool]['good']} bad={s[pool]['bad']}")
+    print(f"  model_reference: {len(d.model_reference)}")
     if d.warnings:
         print("Lesson warnings:")
         for w in d.warnings:
@@ -616,19 +637,22 @@ def _truncate(url: str, n: int = 60) -> str:
 def _print_manifest_preview(manifest: dict) -> None:
     """Pretty-print the manifest with truncated URLs (for --dry-run)."""
     preview: dict = {}
-    for pool, sides in manifest.items():
-        preview[pool] = {}
-        for side, entries in sides.items():
-            preview[pool][side] = []
+    for key, value in manifest.items():
+        if key == "model_reference":
+            preview[key] = [{"type": e["type"], "url": _truncate(e["url"])} for e in value]
+            continue
+        preview[key] = {}
+        for side, entries in value.items():
+            preview[key][side] = []
             for e in entries:
                 if e["type"] == "pair":
-                    preview[pool][side].append({
+                    preview[key][side].append({
                         "type": "pair",
                         "original_url": _truncate(e["original_url"]),
                         "generation_url": _truncate(e["generation_url"]),
                     })
                 else:
-                    preview[pool][side].append({
+                    preview[key][side].append({
                         "type": e["type"],
                         "url": _truncate(e["url"]),
                     })
