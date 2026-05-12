@@ -54,8 +54,7 @@ export default function CandidateDetail({ jwt }) {
       <h2 style={{ marginTop: 32 }}>Per-step</h2>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead><tr style={{ borderBottom: "1px solid #2a2a2a", textAlign: "left" }}>
-          <th style={th}>Step</th><th style={th}>Accuracy</th><th style={th}>Obvious bad caught</th>
-          <th style={th}>Obvious good caught</th><th style={th}>Dupe consistency</th>
+          <th style={th}>Step</th><th style={th}>Accuracy</th><th style={th}>Dupes</th>
           <th style={th}>Median dwell</th><th style={th}>Duration</th>
         </tr></thead>
         <tbody>
@@ -63,9 +62,7 @@ export default function CandidateDetail({ jwt }) {
             <tr key={s.pool} style={{ borderBottom: "1px solid #1a1a1a" }}>
               <td style={td}>{s.pool}</td>
               <td style={td}>{(s.accuracy * 100).toFixed(0)}%</td>
-              <td style={td}>{s.obvious_bad_caught}/4</td>
-              <td style={td}>{s.obvious_good_caught}/4</td>
-              <td style={td}>{s.duplicate_consistency}/2</td>
+              <td style={td}>{s.expected_duplicates === 0 ? "—" : `${s.duplicate_consistency}/${s.expected_duplicates}`}</td>
               <td style={td}>{s.median_dwell_ms ? `${(s.median_dwell_ms / 1000).toFixed(1)}s` : "—"}</td>
               <td style={td}>{s.duration_seconds ? `${Math.round(s.duration_seconds / 60)}m` : "—"}</td>
             </tr>
@@ -88,7 +85,7 @@ export default function CandidateDetail({ jwt }) {
       <h2 style={{ marginTop: 32 }}>All decisions</h2>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead><tr style={{ borderBottom: "1px solid #2a2a2a", textAlign: "left" }}>
-          <th style={th}>Pool</th><th style={th}>#</th><th style={th}>Type</th>
+          <th style={th}>Pool</th><th style={th}>#</th>
           <th style={th}>Their answer</th><th style={th}>Correct?</th><th style={th}>Dwell</th><th></th>
         </tr></thead>
         <tbody>
@@ -96,7 +93,6 @@ export default function CandidateDetail({ jwt }) {
             <tr key={d.id} style={{ borderBottom: "1px solid #1a1a1a", background: !d.is_correct ? "#1f0d0d" : "transparent" }}>
               <td style={td}>{d.pool}</td>
               <td style={td}>{d.display_index + 1}{d.is_duplicate ? "*" : ""}</td>
-              <td style={td}>{d.anchor_kind || "normal"}</td>
               <td style={td}>{d.answer ? "Yes" : "No"}</td>
               <td style={td}>{d.is_correct ? "✓" : "✗"}</td>
               <td style={td}>{(d.dwell_ms / 1000).toFixed(1)}s</td>

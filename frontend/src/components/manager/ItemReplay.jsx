@@ -17,8 +17,7 @@ export default function ItemReplay({ jwt, decision, onClose }) {
         <h3 style={{ marginTop: 0 }}>{decision.pool} — item #{decision.display_index + 1}</h3>
         <p className="muted">
           Candidate said: <strong>{decision.answer ? "Yes" : "No"}</strong> ·
-          Correct answer: <strong>{decision.is_correct ? "(matches)" : "(opposite)"}</strong> ·
-          Type: <strong>{decision.anchor_kind || "normal"}</strong>
+          Correct answer: <strong>{decision.is_correct ? "(matches)" : "(opposite)"}</strong>
         </p>
         {url ? (
           isVideo ? <video src={url} controls style={{ maxWidth: "100%" }} /> :

@@ -93,6 +93,17 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
               controls autoPlay
               style={{ width: 240, aspectRatio: "9/16", borderRadius: 6, background: "#000" }}
             />
+          ) : item.reference_url ? (
+            <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+              <div>
+                <div className="label" style={{ marginBottom: 6 }}>Original frame</div>
+                <img src={item.reference_url} alt="" style={{ width: 200, borderRadius: 6, display: "block" }} />
+              </div>
+              <div>
+                <div className="label" style={{ marginBottom: 6 }}>AI generation</div>
+                <img src={item.storage_url} alt="" style={{ width: 320, borderRadius: 6, display: "block" }} />
+              </div>
+            </div>
           ) : (
             <img
               src={item.storage_url}
