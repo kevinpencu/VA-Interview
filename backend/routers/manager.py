@@ -112,12 +112,11 @@ def candidate_detail(cid: str, _: dict = Depends(_require_manager)) -> Candidate
     steps: list[StepBreakdown] = []
     for pool in POOLS:
         step_decisions = [d for d in decisions if d["pool"] == pool]
-        non_dupes = [d for d in step_decisions if d["duplicate_of"] is None]
         accuracy = (sum(1 for d in step_decisions if d["is_correct"]) / len(step_decisions)) if step_decisions else 0.0
-        ob_caught = sum(1 for d in non_dupes
-                        if items_by_id[d["item_id"]]["anchor_kind"] == "obvious_bad" and d["is_correct"])
-        og_caught = sum(1 for d in non_dupes
-                        if items_by_id[d["item_id"]]["anchor_kind"] == "obvious_good" and d["is_correct"])
+        expected_duplicates = sum(
+            1 for i in items
+            if i["pool"] == pool and i.get("duplicate_of_item") is not None
+        )
         dupes = [d for d in step_decisions if d["duplicate_of"] is not None]
         dupe_consistency = sum(
             1 for d in dupes
@@ -139,8 +138,8 @@ def candidate_detail(cid: str, _: dict = Depends(_require_manager)) -> Candidate
             )
         steps.append(StepBreakdown(
             pool=pool, accuracy=accuracy,
-            obvious_bad_caught=ob_caught, obvious_good_caught=og_caught,
             duplicate_consistency=dupe_consistency,
+            expected_duplicates=expected_duplicates,
             median_dwell_ms=median_dwell, duration_seconds=duration,
         ))
 
@@ -175,9 +174,8 @@ def candidate_detail(cid: str, _: dict = Depends(_require_manager)) -> Candidate
                 "id": d["id"], "pool": d["pool"], "display_index": d["display_index"],
                 "item_id": d["item_id"],
                 "storage_path": items_by_id[d["item_id"]]["storage_path"],
+                "reference_path": items_by_id[d["item_id"]].get("reference_path"),
                 "answer": d["answer"], "is_correct": d["is_correct"],
-                "is_anchor": items_by_id[d["item_id"]]["is_anchor"],
-                "anchor_kind": items_by_id[d["item_id"]]["anchor_kind"],
                 "dwell_ms": d["dwell_ms"], "is_duplicate": d["duplicate_of"] is not None,
                 "justification": d.get("justification"),
             }

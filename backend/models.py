@@ -55,6 +55,7 @@ class StateResponseItem(BaseModel):
     storage_url: str       # signed URL for the media file
     pool: Pool
     display_index: int     # 0..29
+    reference_url: str | None = None   # signed URL for paired reference (e.g. NB original frame)
 
 
 class StateResponse(BaseModel):
@@ -128,9 +129,8 @@ class CandidateRow(BaseModel):
 class StepBreakdown(BaseModel):
     pool: Pool
     accuracy: float
-    obvious_bad_caught: int
-    obvious_good_caught: int
     duplicate_consistency: int
+    expected_duplicates: int = 0
     median_dwell_ms: int | None
     duration_seconds: int | None
 

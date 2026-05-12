@@ -5,9 +5,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 from config import (
-    OBVIOUS_BAD_ANCHORS_PER_STEP,
-    OBVIOUS_GOOD_ANCHORS_PER_STEP,
-    DUPLICATES_PER_STEP,
     POOLS,
     QUIZ_PASS_THRESHOLD,
     STEP_ACCURACY_BORDERLINE_FLOOR,
@@ -22,9 +19,8 @@ Recommendation = Literal["pass", "borderline", "fail"]
 @dataclass(frozen=True)
 class StepStats:
     accuracy: float                # correct / 30
-    obvious_bad_caught: int        # 0..OBVIOUS_BAD_ANCHORS_PER_STEP
-    obvious_good_caught: int       # 0..OBVIOUS_GOOD_ANCHORS_PER_STEP
-    duplicate_consistency: int     # 0..DUPLICATES_PER_STEP
+    duplicate_consistency: int     # 0..expected_duplicates
+    expected_duplicates: int       # how many tracked dupes exist for the pool
 
 
 @dataclass(frozen=True)
@@ -54,9 +50,7 @@ def compute_recommendation(inp: ScoringInput) -> tuple[Recommendation, list[str]
 
     for pool in POOLS:
         s = inp.step(pool)
-        if s.obvious_bad_caught < OBVIOUS_BAD_ANCHORS_PER_STEP:
-            fail_reasons.append(f"missed_obvious_bad_{pool}")
-        if s.duplicate_consistency < DUPLICATES_PER_STEP:
+        if s.duplicate_consistency < s.expected_duplicates:
             fail_reasons.append(f"inconsistent_duplicate_{pool}")
         if s.accuracy < STEP_ACCURACY_FAIL_FLOOR:
             fail_reasons.append(f"below_floor_{pool}")
@@ -67,8 +61,6 @@ def compute_recommendation(inp: ScoringInput) -> tuple[Recommendation, list[str]
     borderline_reasons: list[str] = []
     for pool in POOLS:
         s = inp.step(pool)
-        if s.obvious_good_caught < OBVIOUS_GOOD_ANCHORS_PER_STEP:
-            borderline_reasons.append(f"rejected_obvious_good_{pool}")
         if s.accuracy < STEP_ACCURACY_BORDERLINE_FLOOR:
             borderline_reasons.append(f"weak_step_{pool}")
     if inp.tab_switches > TAB_SWITCH_BORDERLINE_THRESHOLD:

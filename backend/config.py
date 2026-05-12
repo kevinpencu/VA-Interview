@@ -53,11 +53,6 @@ def load_settings() -> Settings:
 # Test composition + scoring constants (LOCKED — do not change without spec update)
 # ============================================================
 ITEMS_PER_STEP = 30
-UNIQUE_ITEMS_PER_STEP = 28
-DUPLICATES_PER_STEP = 2
-OBVIOUS_GOOD_ANCHORS_PER_STEP = 4
-OBVIOUS_BAD_ANCHORS_PER_STEP = 4
-NORMAL_ITEMS_PER_STEP = 20
 FORCED_JUSTIFICATIONS_PER_STEP = 2
 
 POOLS = ("tiktok", "nano_banana", "kling")

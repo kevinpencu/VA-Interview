@@ -1,12 +1,8 @@
 """Seed test_items + quiz_questions from local content/ folder.
 
-Layout expected:
-  content/
-    tiktoks/<filename>.mp4
-    nano_banana/<filename>.png
-    kling/<filename>.mp4
-    items.csv      columns: filename,pool,correct_answer,is_anchor,anchor_kind,notes
-    quiz.json      [{"question":"...","options":[...],"correct_index":N}, ...]
+NOTE: This file is a stub kept compatible with the v2 schema. Task C
+replaces it with the production seeding script (NB pair handling,
+tracked dupes via duplicate_of_item, etc.).
 
 Idempotent: re-running upserts items by (pool, storage_path).
 """
@@ -17,10 +13,7 @@ import json
 import sys
 from pathlib import Path
 
-from config import (
-    OBVIOUS_BAD_ANCHORS_PER_STEP, OBVIOUS_GOOD_ANCHORS_PER_STEP,
-    POOLS, QUIZ_QUESTION_COUNT, UNIQUE_ITEMS_PER_STEP,
-)
+from config import POOLS, QUIZ_QUESTION_COUNT
 from storage import bucket_for_pool
 from supabase_client import get_supabase
 
@@ -36,28 +29,16 @@ def _load_items_csv() -> list[dict]:
                 "filename": row["filename"].strip(),
                 "pool": row["pool"].strip(),
                 "correct_answer": row["correct_answer"].strip().lower() == "true",
-                "is_anchor": row["is_anchor"].strip().lower() == "true",
-                "anchor_kind": (row.get("anchor_kind") or "").strip() or None,
                 "notes": (row.get("notes") or "").strip() or None,
             })
     return rows
 
 
 def _validate(rows: list[dict]) -> None:
-    by_pool: dict[str, list[dict]] = {p: [] for p in POOLS}
-    for r in rows:
-        if r["pool"] not in POOLS:
-            raise SystemExit(f"Unknown pool: {r['pool']}")
-        by_pool[r["pool"]].append(r)
-    for pool, items in by_pool.items():
-        if len(items) != UNIQUE_ITEMS_PER_STEP:
-            raise SystemExit(f"Pool {pool}: expected {UNIQUE_ITEMS_PER_STEP} items, got {len(items)}")
-        og = sum(1 for i in items if i["is_anchor"] and i["anchor_kind"] == "obvious_good")
-        ob = sum(1 for i in items if i["is_anchor"] and i["anchor_kind"] == "obvious_bad")
-        if og != OBVIOUS_GOOD_ANCHORS_PER_STEP:
-            raise SystemExit(f"Pool {pool}: expected {OBVIOUS_GOOD_ANCHORS_PER_STEP} obvious_good anchors, got {og}")
-        if ob != OBVIOUS_BAD_ANCHORS_PER_STEP:
-            raise SystemExit(f"Pool {pool}: expected {OBVIOUS_BAD_ANCHORS_PER_STEP} obvious_bad anchors, got {ob}")
+    # No-op: anchor-aware validation has been removed; Task C will replace this
+    # file with a new seeding strategy that fits the v2 schema (NB pairs,
+    # tracked dupes via duplicate_of_item).
+    return
 
 
 def _upload_and_upsert(rows: list[dict]) -> None:
@@ -82,8 +63,6 @@ def _upload_and_upsert(rows: list[dict]) -> None:
             "pool": r["pool"],
             "storage_path": r["filename"],
             "correct_answer": r["correct_answer"],
-            "is_anchor": r["is_anchor"],
-            "anchor_kind": r["anchor_kind"],
             "notes": r["notes"],
         }, on_conflict="pool,storage_path").execute()
         print(f"  ✓ {r['pool']}/{r['filename']}")

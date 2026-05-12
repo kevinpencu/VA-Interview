@@ -57,7 +57,7 @@ def test_submit_writes_recommendation(client, mock_supabase):
     # Patch _build_scoring_input to skip heavy assembly. Pass perfect stats so
     # compute_recommendation returns "pass" with no fail reasons.
     from scoring import ScoringInput, StepStats
-    perfect = StepStats(1.0, 4, 4, 2)
+    perfect = StepStats(accuracy=1.0, duplicate_consistency=0, expected_duplicates=0)
     perfect_input = ScoringInput(
         quiz_score=5, tab_switches=0,
         tiktok=perfect, nano_banana=perfect, kling=perfect,

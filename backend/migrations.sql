@@ -122,3 +122,10 @@ CREATE INDEX IF NOT EXISTS candidate_decisions_item_idx
 
 CREATE INDEX IF NOT EXISTS candidate_decisions_duplicate_of_idx
   ON candidate_decisions(duplicate_of) WHERE duplicate_of IS NOT NULL;
+
+-- ============================================================
+-- v2 — drop anchors, NB pair support, tracked dupe
+-- ============================================================
+ALTER TABLE test_items ADD COLUMN IF NOT EXISTS reference_path TEXT;
+ALTER TABLE test_items ADD COLUMN IF NOT EXISTS duplicate_of_item UUID REFERENCES test_items(id);
+CREATE INDEX IF NOT EXISTS test_items_duplicate_of_idx ON test_items(duplicate_of_item) WHERE duplicate_of_item IS NOT NULL;

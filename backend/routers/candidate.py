@@ -9,16 +9,11 @@ from fastapi import APIRouter, Cookie, HTTPException, Response
 
 from auth import verify_candidate_session
 from config import (
-    DUPLICATES_PER_STEP,
     FORCED_JUSTIFICATIONS_PER_STEP,
     ITEMS_PER_STEP,
-    NORMAL_ITEMS_PER_STEP,
-    OBVIOUS_BAD_ANCHORS_PER_STEP,
-    OBVIOUS_GOOD_ANCHORS_PER_STEP,
     POOLS,
     QUIZ_PASS_THRESHOLD,
     QUIZ_QUESTION_COUNT,
-    UNIQUE_ITEMS_PER_STEP,
     load_settings,
 )
 from models import (
@@ -101,41 +96,54 @@ def _items_for_pool(pool: str) -> list[dict]:
 
 
 def _build_step_sequence(pool: str, rng: _random.Random) -> list[dict]:
-    """Return a list of ITEMS_PER_STEP item dicts in the order to be shown.
+    """Return a list of item dicts in the order to be shown.
 
-    Layout: 28 unique (4 obvious_good + 4 obvious_bad + 20 normal) shuffled,
-    then 2 random items from the 28 are duplicated and inserted at later positions.
+    Originals (rows where duplicate_of_item IS NULL) are shuffled. Then any
+    rows where duplicate_of_item references an original in this pool are
+    inserted at a later random position.
+
     Returns dicts with keys: item_id, is_duplicate, original_index (or None).
     """
     items = _items_for_pool(pool)
-    obvious_good = [i for i in items if i["is_anchor"] and i["anchor_kind"] == "obvious_good"]
-    obvious_bad = [i for i in items if i["is_anchor"] and i["anchor_kind"] == "obvious_bad"]
-    normal = [i for i in items if not i["is_anchor"]]
+    originals = [i for i in items if i.get("duplicate_of_item") is None]
+    dupes = [i for i in items if i.get("duplicate_of_item") is not None]
 
-    if (len(obvious_good) < OBVIOUS_GOOD_ANCHORS_PER_STEP
-            or len(obvious_bad) < OBVIOUS_BAD_ANCHORS_PER_STEP
-            or len(normal) < NORMAL_ITEMS_PER_STEP):
+    if not originals:
         raise HTTPException(500, f"Insufficient items in pool {pool}")
 
-    chosen = (
-        rng.sample(obvious_good, OBVIOUS_GOOD_ANCHORS_PER_STEP)
-        + rng.sample(obvious_bad, OBVIOUS_BAD_ANCHORS_PER_STEP)
-        + rng.sample(normal, NORMAL_ITEMS_PER_STEP)
-    )
-    rng.shuffle(chosen)
+    shuffled = list(originals)
+    rng.shuffle(shuffled)
+    sequence = [
+        {"item_id": i["id"], "is_duplicate": False, "original_index": None}
+        for i in shuffled
+    ]
 
-    sequence = [{"item_id": i["id"], "is_duplicate": False, "original_index": None} for i in chosen]
-    # Pick 2 unique source positions to duplicate. Their dupes go at later positions.
-    source_positions = rng.sample(range(UNIQUE_ITEMS_PER_STEP), DUPLICATES_PER_STEP)
-    for src in sorted(source_positions):
-        # Insert duplicate at a position strictly later than src and strictly later than current end.
-        insert_at = rng.randint(src + 1, len(sequence))
-        sequence.insert(insert_at, {
-            "item_id": sequence[src]["item_id"],
+    def _pos_of(item_id: str) -> int | None:
+        for idx, entry in enumerate(sequence):
+            if entry["item_id"] == item_id and not entry["is_duplicate"]:
+                return idx
+        return None
+
+    for dupe in dupes:
+        original_item_id = dupe["duplicate_of_item"]
+        original_pos = _pos_of(original_item_id)
+        if original_pos is None:
+            # Dupe references an item not present in this pool's originals — skip defensively.
+            continue
+        insert_at = rng.randint(original_pos + 1, len(sequence))
+        new_entry = {
+            "item_id": dupe["id"],
             "is_duplicate": True,
-            "original_index": src,
-        })
-    assert len(sequence) == ITEMS_PER_STEP
+            "original_index": original_pos,
+        }
+        # Bump previously stored original_index for any earlier-inserted dupe
+        # whose original now shifts right by 1 due to this insertion.
+        for entry in sequence:
+            if entry["is_duplicate"] and entry["original_index"] is not None \
+                    and entry["original_index"] >= insert_at:
+                entry["original_index"] += 1
+        sequence.insert(insert_at, new_entry)
+
     return sequence
 
 
@@ -155,7 +163,7 @@ def _ensure_step_started(candidate: dict, pool: str) -> tuple[list[dict], list[i
     sequence = _build_step_sequence(pool, rng)
 
     if forced is None:
-        forced = sorted(rng.sample(range(ITEMS_PER_STEP), FORCED_JUSTIFICATIONS_PER_STEP))
+        forced = sorted(rng.sample(range(len(sequence)), FORCED_JUSTIFICATIONS_PER_STEP))
         all_forced = candidate.get("forced_justification_indexes") or {}
         all_forced[pool] = forced
         get_supabase().table("candidates").update({
@@ -178,11 +186,14 @@ def _next_item_for_step(candidate: dict, pool: str) -> StateResponseItem | None:
         return None
     item_id = sequence[next_idx]["item_id"]
     item = get_supabase().table("test_items").select("*").eq("id", item_id).single().execute().data
+    ref_path = item.get("reference_path")
+    reference_url = signed_url_for_item(pool, ref_path) if ref_path else None
     return StateResponseItem(
         id=item_id,
         storage_url=signed_url_for_item(pool, item["storage_path"]),
         pool=pool,
         display_index=next_idx,
+        reference_url=reference_url,
     )
 
 
@@ -442,11 +453,14 @@ def decision(token: str, body: DecisionRequest, session_id: str | None = Cookie(
 
     next_item_id = sequence[next_progress]["item_id"]
     next_item_row = get_supabase().table("test_items").select("*").eq("id", next_item_id).single().execute().data
+    next_ref_path = next_item_row.get("reference_path")
+    next_reference_url = signed_url_for_item(pool, next_ref_path) if next_ref_path else None
     next_item_payload = StateResponseItem(
         id=next_item_id,
         storage_url=signed_url_for_item(pool, next_item_row["storage_path"]),
         pool=pool,
         display_index=next_progress,
+        reference_url=next_reference_url,
     )
     return DecisionResponse(
         decision_id=decision_id,
@@ -510,22 +524,19 @@ def _build_scoring_input(cid: str) -> ScoringInput:
         .select("kind").eq("candidate_id", cid).eq("kind", "tab_blur").execute()
     ).data or []
 
+    def _expected_duplicates(pool: str) -> int:
+        return sum(
+            1 for i in items_by_id.values()
+            if i["pool"] == pool and i.get("duplicate_of_item") is not None
+        )
+
     def _step_stats(pool: str) -> StepStats:
         step_decisions = [d for d in decisions if d["pool"] == pool]
+        expected_dupes = _expected_duplicates(pool)
         if not step_decisions:
-            return StepStats(0.0, 0, 0, 0)
+            return StepStats(0.0, 0, expected_dupes)
         correct = sum(1 for d in step_decisions if d["is_correct"])
         accuracy = correct / len(step_decisions)
-        # Anchor scoring (only first show — exclude duplicates)
-        non_dupes = [d for d in step_decisions if d["duplicate_of"] is None]
-        obvious_bad_caught = sum(
-            1 for d in non_dupes
-            if items_by_id[d["item_id"]]["anchor_kind"] == "obvious_bad" and d["is_correct"]
-        )
-        obvious_good_caught = sum(
-            1 for d in non_dupes
-            if items_by_id[d["item_id"]]["anchor_kind"] == "obvious_good" and d["is_correct"]
-        )
         # Duplicate consistency: same answer on dupe pair
         dupes = [d for d in step_decisions if d["duplicate_of"] is not None]
         dupe_consistency = 0
@@ -535,9 +546,8 @@ def _build_scoring_input(cid: str) -> ScoringInput:
                 dupe_consistency += 1
         return StepStats(
             accuracy=accuracy,
-            obvious_bad_caught=obvious_bad_caught,
-            obvious_good_caught=obvious_good_caught,
             duplicate_consistency=dupe_consistency,
+            expected_duplicates=expected_dupes,
         )
 
     return ScoringInput(

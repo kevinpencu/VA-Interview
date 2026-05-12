@@ -6,15 +6,13 @@ from scoring import StepStats, ScoringInput, compute_recommendation
 
 def _step(
     accuracy: float = 1.0,
-    obvious_bad_caught: int = 4,
-    obvious_good_caught: int = 4,
-    duplicate_consistency: int = 2,
+    duplicate_consistency: int = 0,
+    expected_duplicates: int = 0,
 ) -> StepStats:
     return StepStats(
         accuracy=accuracy,
-        obvious_bad_caught=obvious_bad_caught,
-        obvious_good_caught=obvious_good_caught,
         duplicate_consistency=duplicate_consistency,
+        expected_duplicates=expected_duplicates,
     )
 
 
@@ -46,22 +44,22 @@ def test_failed_quiz_is_fail():
     assert "failed_quiz" in reasons
 
 
-def test_missed_obvious_bad_is_fail():
-    rec, reasons = compute_recommendation(_input(tiktok=_step(obvious_bad_caught=3)))
-    assert rec == "fail"
-    assert "missed_obvious_bad_tiktok" in reasons
-
-
-def test_missed_obvious_bad_in_kling_is_fail():
-    rec, reasons = compute_recommendation(_input(kling=_step(obvious_bad_caught=2)))
-    assert rec == "fail"
-    assert "missed_obvious_bad_kling" in reasons
-
-
 def test_dupe_inconsistency_is_fail():
-    rec, reasons = compute_recommendation(_input(nano_banana=_step(duplicate_consistency=1)))
+    rec, reasons = compute_recommendation(_input(
+        nano_banana=_step(expected_duplicates=1, duplicate_consistency=0),
+    ))
     assert rec == "fail"
     assert "inconsistent_duplicate_nano_banana" in reasons
+
+
+def test_zero_dupes_is_not_fail():
+    rec, reasons = compute_recommendation(_input(
+        tiktok=_step(expected_duplicates=0, duplicate_consistency=0),
+        nano_banana=_step(expected_duplicates=0, duplicate_consistency=0),
+        kling=_step(expected_duplicates=0, duplicate_consistency=0),
+    ))
+    assert rec == "pass"
+    assert reasons == []
 
 
 def test_below_floor_accuracy_is_fail():
@@ -75,12 +73,6 @@ def test_70_percent_is_not_fail():
     # 0.70 is the floor — ≥ 0.70 is not below floor. But < 0.80 is borderline.
     assert rec == "borderline"
     assert "weak_step_tiktok" in reasons
-
-
-def test_rejected_obvious_good_is_borderline():
-    rec, reasons = compute_recommendation(_input(kling=_step(obvious_good_caught=3)))
-    assert rec == "borderline"
-    assert "rejected_obvious_good_kling" in reasons
 
 
 def test_high_tab_switches_is_borderline():
@@ -98,21 +90,21 @@ def test_5_tab_switches_is_not_borderline():
 def test_fail_takes_precedence_over_borderline():
     rec, reasons = compute_recommendation(_input(
         quiz_score=3,                                    # fail
-        kling=_step(obvious_good_caught=2),              # borderline
+        kling=_step(accuracy=0.75),                      # borderline (weak_step)
     ))
     assert rec == "fail"
     assert "failed_quiz" in reasons
     # borderline reasons not added when overall is fail
-    assert all(not r.startswith("rejected_obvious_good") for r in reasons)
+    assert all(not r.startswith("weak_step") for r in reasons)
 
 
 def test_multiple_fail_reasons_all_recorded():
     rec, reasons = compute_recommendation(_input(
         quiz_score=3,
-        tiktok=_step(obvious_bad_caught=3),
+        tiktok=_step(expected_duplicates=1, duplicate_consistency=0),
         kling=_step(accuracy=0.5),
     ))
     assert rec == "fail"
     assert "failed_quiz" in reasons
-    assert "missed_obvious_bad_tiktok" in reasons
+    assert "inconsistent_duplicate_tiktok" in reasons
     assert "below_floor_kling" in reasons
