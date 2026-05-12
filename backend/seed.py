@@ -26,22 +26,28 @@ resolve to the original's UUID.
 Quiz: read content_dir/quiz.json if present, else fall back to a hardcoded
 default that mirrors frontend/src/components/candidate/Quiz.jsx.
 
+Tutorial lessons (--lessons-dir): walks the same six folder names and uploads
+their files to the `tutorial` bucket under `<pool_key>/<good|bad>/<filename>`.
+Writes a `manifest.json` at the bucket root that the frontend Tutorial reads.
+
 Usage:
     python seed.py
     python seed.py --content-dir "/Users/victor/Desktop/VA Interview photos:videos"
     python seed.py --content-dir ./content --dry-run --quiet
+    python seed.py --lessons-dir "/Users/victor/Desktop/lessons before test for VA"
 """
 from __future__ import annotations
 
 import argparse
 import json
 import mimetypes
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from config import POOLS, QUIZ_QUESTION_COUNT
+from config import POOLS, QUIZ_QUESTION_COUNT, load_settings
 from storage import bucket_for_pool
 
 
@@ -378,6 +384,343 @@ def _load_quiz(content_dir: Path) -> list[dict]:
 
 
 # ----------------------------------------------------------------------------
+# Tutorial lessons
+# ----------------------------------------------------------------------------
+# Maps the on-disk folder name to (pool_key, side) for the tutorial manifest.
+LESSON_FOLDER_MAP: dict[str, tuple[str, str]] = {
+    "Good TikToks": ("tiktok", "good"),
+    "Bad TikToks": ("tiktok", "bad"),
+    "Good Kling": ("kling", "good"),
+    "Bad Kling": ("kling", "bad"),
+    "Good NanoBanana": ("nano_banana", "good"),
+    "Bad NanoBanana": ("nano_banana", "bad"),
+}
+
+# Extensions accepted per pool for tutorial lessons. Mirrors the test-content
+# rules but tolerates more image formats for nano_banana so we don't drop
+# example files needlessly.
+LESSON_EXTS: dict[str, set[str]] = {
+    "tiktok": {".mp4"},
+    "kling": {".mp4"},
+    "nano_banana": {".png", ".jpg", ".jpeg", ".webp"},
+}
+
+_NB_ORIGINAL_RE = re.compile(r"^(.+) ORIGINAL\.\w+$", re.IGNORECASE)
+_NB_AI_RE = re.compile(r"^(.+) AI\.\w+$", re.IGNORECASE)
+_NB_IMG_RE = re.compile(r"^IMG_(\d+)\.\w+$", re.IGNORECASE)
+
+
+def _list_lesson_files(folder: Path, pool: str) -> list[Path]:
+    """Return non-dotfile files in `folder` whose extension is valid for `pool`."""
+    if not folder.is_dir():
+        raise SystemExit(f"missing lessons folder: {folder}")
+    allowed = LESSON_EXTS[pool]
+    out: list[Path] = []
+    for p in sorted(folder.iterdir()):
+        if not p.is_file() or _is_dotfile(p.name):
+            continue
+        if p.suffix.lower() not in allowed:
+            continue
+        out.append(p)
+    return out
+
+
+def _public_url(sb, bucket: str, path: str) -> str:
+    """Resolve the public URL for `bucket/path`. supabase-py returns either a
+    plain string or a dict depending on version — handle both."""
+    res = sb.storage.from_(bucket).get_public_url(path)
+    if isinstance(res, str):
+        return res
+    if isinstance(res, dict):
+        # Common keys across versions.
+        return (
+            res.get("publicURL")
+            or res.get("publicUrl")
+            or res.get("public_url")
+            or ""
+        )
+    return str(res or "")
+
+
+def _fallback_public_url(supabase_url: str, bucket: str, path: str) -> str:
+    """Construct the canonical public URL when supabase-py doesn't return one.
+    Preserves the raw path (no percent-encoding) — the frontend handles that
+    via encodeURI when fetching."""
+    return f"{supabase_url.rstrip('/')}/storage/v1/object/public/{bucket}/{path}"
+
+
+def _pair_nb_good(files: list[Path], warn: list[str]) -> list[dict]:
+    """Pair Good NanoBanana files. Order:
+       1) <prefix> ORIGINAL.<ext> + <prefix> AI.<ext> (case-insensitive prefix).
+       2) IMG_<N>.<ext> + IMG_<N+1>.<ext> consecutive pairs.
+       Anything left over emits a warning."""
+    pairs: list[tuple[Path, Path]] = []  # (original, ai)
+    used: set[Path] = set()
+
+    # Pass 1: ORIGINAL / AI by shared prefix.
+    originals_by_prefix: dict[str, Path] = {}
+    ais_by_prefix: dict[str, Path] = {}
+    for p in files:
+        mo = _NB_ORIGINAL_RE.match(p.name)
+        ma = _NB_AI_RE.match(p.name)
+        if mo:
+            originals_by_prefix[mo.group(1).strip().lower()] = p
+        elif ma:
+            ais_by_prefix[ma.group(1).strip().lower()] = p
+    for prefix, original in originals_by_prefix.items():
+        ai = ais_by_prefix.get(prefix)
+        if ai is not None:
+            pairs.append((original, ai))
+            used.add(original)
+            used.add(ai)
+
+    # Pass 2: IMG_<N> consecutive pairs.
+    img_by_n: dict[int, Path] = {}
+    for p in files:
+        if p in used:
+            continue
+        m = _NB_IMG_RE.match(p.name)
+        if not m:
+            continue
+        img_by_n[int(m.group(1))] = p
+    ns = sorted(img_by_n.keys())
+    i = 0
+    while i < len(ns) - 1:
+        if ns[i + 1] == ns[i] + 1:
+            a, b = img_by_n[ns[i]], img_by_n[ns[i + 1]]
+            pairs.append((a, b))
+            used.add(a)
+            used.add(b)
+            i += 2
+        else:
+            i += 1
+
+    # Warn about leftovers.
+    for p in files:
+        if p not in used:
+            warn.append(f"NB-good unpaired file (skipped): {p.name}")
+
+    return [(orig, ai) for orig, ai in pairs]  # type: ignore[return-value]
+
+
+@dataclass
+class LessonDiscovery:
+    """Pre-upload view of the lessons folder. Mirrors the manifest shape but
+    holds local paths so the upload step can map name->URL after upload."""
+    # pool -> side -> list of entries
+    # tiktok/kling entries: {"type": "video", "path": Path}
+    # nb good entries:      {"type": "pair", "original": Path, "ai": Path}
+    # nb bad entries:       {"type": "image", "path": Path}
+    pools: dict[str, dict[str, list[dict]]] = field(
+        default_factory=lambda: {p: {"good": [], "bad": []} for p in POOLS}
+    )
+    # Flat list of (storage_path, local_path) tuples for the uploader.
+    uploads: list[tuple[str, Path]] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+
+def discover_lessons(lessons_dir: Path) -> LessonDiscovery:
+    """Walk the six lesson folders and build a LessonDiscovery."""
+    d = LessonDiscovery()
+    for folder_name, (pool, side) in LESSON_FOLDER_MAP.items():
+        folder = lessons_dir / folder_name
+        files = _list_lesson_files(folder, pool)
+
+        if pool in ("tiktok", "kling"):
+            for p in files:
+                storage_path = f"{pool}/{side}/{p.name}"
+                d.pools[pool][side].append({"type": "video", "path": p, "storage_path": storage_path})
+                d.uploads.append((storage_path, p))
+            continue
+
+        # nano_banana
+        if side == "good":
+            pairs = _pair_nb_good(files, d.warnings)
+            for original, ai in pairs:
+                op = f"nano_banana/good/{original.name}"
+                ap = f"nano_banana/good/{ai.name}"
+                d.pools["nano_banana"]["good"].append({
+                    "type": "pair",
+                    "original": original,
+                    "ai": ai,
+                    "original_storage_path": op,
+                    "ai_storage_path": ap,
+                })
+                d.uploads.append((op, original))
+                d.uploads.append((ap, ai))
+        else:
+            # Bad NB: every file is a standalone failure-mode image.
+            for p in files:
+                storage_path = f"nano_banana/bad/{p.name}"
+                d.pools["nano_banana"]["bad"].append({
+                    "type": "image",
+                    "path": p,
+                    "storage_path": storage_path,
+                })
+                d.uploads.append((storage_path, p))
+    return d
+
+
+def build_manifest(d: LessonDiscovery, url_for: callable) -> dict:
+    """Build the manifest JSON from a LessonDiscovery. `url_for(storage_path)`
+    returns the public URL for an already-uploaded path."""
+    manifest: dict = {p: {"good": [], "bad": []} for p in POOLS}
+    for pool, sides in d.pools.items():
+        for side, entries in sides.items():
+            for e in entries:
+                if e["type"] == "video":
+                    manifest[pool][side].append({
+                        "type": "video",
+                        "url": url_for(e["storage_path"]),
+                    })
+                elif e["type"] == "image":
+                    manifest[pool][side].append({
+                        "type": "image",
+                        "url": url_for(e["storage_path"]),
+                    })
+                elif e["type"] == "pair":
+                    manifest[pool][side].append({
+                        "type": "pair",
+                        "original_url": url_for(e["original_storage_path"]),
+                        "generation_url": url_for(e["ai_storage_path"]),
+                    })
+    return manifest
+
+
+def _lesson_summary(d: LessonDiscovery) -> dict[str, dict[str, int]]:
+    """Per-pool, per-side counts (counts entries, i.e. pairs count as 1)."""
+    out: dict[str, dict[str, int]] = {p: {"good": 0, "bad": 0} for p in POOLS}
+    for pool, sides in d.pools.items():
+        for side, entries in sides.items():
+            out[pool][side] = len(entries)
+    return out
+
+
+def _print_lesson_summary(d: LessonDiscovery) -> None:
+    s = _lesson_summary(d)
+    print("Lesson discovery summary:")
+    for pool in POOLS:
+        print(f"  {pool}: good={s[pool]['good']} bad={s[pool]['bad']}")
+    if d.warnings:
+        print("Lesson warnings:")
+        for w in d.warnings:
+            print(f"  ! {w}")
+
+
+def _truncate(url: str, n: int = 60) -> str:
+    if len(url) <= n:
+        return url
+    return url[: n - 3] + "..."
+
+
+def _print_manifest_preview(manifest: dict) -> None:
+    """Pretty-print the manifest with truncated URLs (for --dry-run)."""
+    preview: dict = {}
+    for pool, sides in manifest.items():
+        preview[pool] = {}
+        for side, entries in sides.items():
+            preview[pool][side] = []
+            for e in entries:
+                if e["type"] == "pair":
+                    preview[pool][side].append({
+                        "type": "pair",
+                        "original_url": _truncate(e["original_url"]),
+                        "generation_url": _truncate(e["generation_url"]),
+                    })
+                else:
+                    preview[pool][side].append({
+                        "type": e["type"],
+                        "url": _truncate(e["url"]),
+                    })
+    print("Manifest preview:")
+    print(json.dumps(preview, indent=2))
+
+
+def seed_lessons(
+    lessons_dir: Path,
+    *,
+    dry_run: bool,
+    verbose: bool,
+) -> int:
+    """Upload lesson files to the tutorial bucket and write manifest.json.
+    Returns a non-zero exit code on failure."""
+    if verbose:
+        print(f"\nLessons dir: {lessons_dir}")
+        print("Discovering lessons...")
+    try:
+        d = discover_lessons(lessons_dir)
+    except SystemExit as e:
+        print(f"lesson discovery error: {e}", file=sys.stderr)
+        return 1
+
+    _print_lesson_summary(d)
+
+    if dry_run:
+        # Build manifest with fake but realistic URLs so the preview is meaningful.
+        # Avoid load_settings() here — it would require a populated .env even
+        # though dry-run is supposed to work offline.
+        import os as _os
+        base = (_os.getenv("SUPABASE_URL") or "https://<supabase-url>").rstrip("/")
+        bucket = _os.getenv("BUCKET_TUTORIAL", "tutorial")
+
+        def fake_url(path: str) -> str:
+            return f"{base}/storage/v1/object/public/{bucket}/{path}"
+
+        manifest = build_manifest(d, fake_url)
+        if verbose:
+            print("\nDry run — would upload to tutorial bucket:")
+            for storage_path, local in d.uploads:
+                print(f"  ^ {bucket}/{storage_path}")
+            _print_manifest_preview(manifest)
+        return 0
+
+    # Real run.
+    from supabase_client import get_supabase  # imported here so --dry-run works offline
+
+    sb = get_supabase()
+    s = load_settings()
+    bucket = s.bucket_tutorial
+
+    if verbose:
+        print(f"\nUploading {len(d.uploads)} lesson files to bucket '{bucket}'...")
+    for storage_path, local in d.uploads:
+        with local.open("rb") as fh:
+            sb.storage.from_(bucket).upload(
+                path=storage_path,
+                file=fh,
+                file_options={
+                    "upsert": "true",
+                    "content-type": _content_type(local.name),
+                },
+            )
+        if verbose:
+            print(f"  ^ {bucket}/{storage_path}")
+
+    def url_for(path: str) -> str:
+        url = _public_url(sb, bucket, path)
+        if not url:
+            url = _fallback_public_url(s.supabase_url, bucket, path)
+        return url
+
+    manifest = build_manifest(d, url_for)
+    manifest_bytes = json.dumps(manifest, indent=2).encode("utf-8")
+    sb.storage.from_(bucket).upload(
+        path="manifest.json",
+        file=manifest_bytes,
+        file_options={"upsert": "true", "content-type": "application/json"},
+    )
+    manifest_url = url_for("manifest.json")
+    if verbose:
+        print(f"\nManifest uploaded: {manifest_url}")
+        counts = _lesson_summary(d)
+        print("Per-pool/side upload counts (manifest entries):")
+        for pool in POOLS:
+            print(f"  {pool}: good={counts[pool]['good']} bad={counts[pool]['bad']}")
+    print("\nLessons seeded.")
+    return 0
+
+
+# ----------------------------------------------------------------------------
 # CLI
 # ----------------------------------------------------------------------------
 def _summarize(originals: list[Item], dupes: list[Item]) -> dict[str, dict]:
@@ -414,21 +757,8 @@ def _print_summary(summary: dict[str, dict], warnings: list[str]) -> None:
             print(f"  ! {w}")
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    default_content = (Path(__file__).resolve().parent.parent / "content").as_posix()
-    parser.add_argument("--content-dir", default=default_content, help="content root")
-    parser.add_argument("--dry-run", action="store_true", help="discover only; no uploads/inserts")
-    parser.add_argument("--quiet", action="store_true", help="suppress per-file progress")
-    args = parser.parse_args(argv)
-
-    content_dir = Path(args.content_dir).expanduser().resolve()
-    if not content_dir.is_dir():
-        print(f"content directory not found: {content_dir}", file=sys.stderr)
-        return 1
-
-    verbose = not args.quiet
-
+def _seed_content(content_dir: Path, *, dry_run: bool, verbose: bool) -> int:
+    """Seed test_items + quiz from content_dir. Returns non-zero on failure."""
     if verbose:
         print(f"Content dir: {content_dir}")
         print("Discovering items...")
@@ -450,7 +780,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(f"Quiz: {len(quiz)} questions ({'from quiz.json' if (content_dir / 'quiz.json').is_file() else 'default'})")
 
-    if args.dry_run:
+    if dry_run:
         if verbose:
             print("\nDry run — would upload + upsert:")
             for it in originals:
@@ -458,7 +788,6 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  + {it.pool}/{it.storage_path}{ref}")
             for it in dupes:
                 print(f"  + {it.pool}/{it.storage_path} (dupe of {it.dupe_of_storage_path})")
-        print("\nDry run complete.")
         return 0
 
     # Real run — talk to Supabase.
@@ -494,8 +823,63 @@ def main(argv: list[str] | None = None) -> int:
     seed_quiz(sb, quiz)
     if verbose:
         print(f"  inserted {len(quiz)} quiz questions")
+    return 0
 
-    print("\nDone.")
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--content-dir",
+        default=None,
+        help="test-content root (skip test-item seed if omitted)",
+    )
+    parser.add_argument(
+        "--lessons-dir",
+        default=None,
+        help="tutorial lessons root (skip lesson seed if omitted)",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="discover only; no uploads/inserts")
+    parser.add_argument("--quiet", action="store_true", help="suppress per-file progress")
+    args = parser.parse_args(argv)
+
+    verbose = not args.quiet
+
+    # If neither flag is given, default --content-dir to the legacy ./content
+    # directory so the previous CLI invocation `python seed.py` still works.
+    if args.content_dir is None and args.lessons_dir is None:
+        args.content_dir = (Path(__file__).resolve().parent.parent / "content").as_posix()
+
+    ran_anything = False
+
+    if args.content_dir is not None:
+        content_dir = Path(args.content_dir).expanduser().resolve()
+        if not content_dir.is_dir():
+            print(f"content directory not found: {content_dir}", file=sys.stderr)
+            return 1
+        rc = _seed_content(content_dir, dry_run=args.dry_run, verbose=verbose)
+        if rc != 0:
+            return rc
+        ran_anything = True
+
+    if args.lessons_dir is not None:
+        lessons_dir = Path(args.lessons_dir).expanduser().resolve()
+        if not lessons_dir.is_dir():
+            print(f"lessons directory not found: {lessons_dir}", file=sys.stderr)
+            return 1
+        rc = seed_lessons(lessons_dir, dry_run=args.dry_run, verbose=verbose)
+        if rc != 0:
+            return rc
+        ran_anything = True
+
+    if not ran_anything:
+        # Shouldn't reach here given the default above, but be defensive.
+        print("Nothing to do — pass --content-dir and/or --lessons-dir.", file=sys.stderr)
+        return 1
+
+    if args.dry_run:
+        print("\nDry run complete.")
+    else:
+        print("\nDone.")
     return 0
 
 

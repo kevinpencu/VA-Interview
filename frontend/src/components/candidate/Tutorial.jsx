@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { candidateApi } from "../../api";
 
-const TUTORIAL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/tutorial`;
+const MANIFEST_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/tutorial/manifest.json`;
 
 const RULES = {
   tiktok: [
@@ -25,8 +25,44 @@ const RULES = {
   ],
 };
 
+// Percent-encode the path portion of a public storage URL. The seed script
+// preserves filenames verbatim (spaces, colons, etc.) so the manifest may
+// contain unencoded URLs; encodeURI handles spaces + special chars without
+// touching the scheme/host.
+function safeUrl(url) {
+  if (!url) return url;
+  try {
+    return encodeURI(decodeURI(url));
+  } catch {
+    return encodeURI(url);
+  }
+}
+
 export default function Tutorial({ token, onContinue }) {
   const [submitting, setSubmitting] = useState(false);
+  const [manifest, setManifest] = useState(null);
+  const [manifestState, setManifestState] = useState("loading"); // loading | ok | error
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(MANIFEST_URL, { cache: "no-store" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`manifest fetch failed: ${r.status}`);
+        return r.json();
+      })
+      .then((m) => {
+        if (cancelled) return;
+        setManifest(m);
+        setManifestState("ok");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setManifestState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function ack() {
     setSubmitting(true);
@@ -43,7 +79,7 @@ export default function Tutorial({ token, onContinue }) {
         <section key={pool} className="card" style={{ marginTop: 24 }}>
           <h2 style={{ marginTop: 0 }}>{poolName(pool)}</h2>
           <ul>{rules.map((r) => <li key={r}>{r}</li>)}</ul>
-          <ExamplesGrid pool={pool} />
+          <ExamplesGrid pool={pool} manifest={manifest} state={manifestState} />
         </section>
       ))}
 
@@ -59,23 +95,96 @@ function poolName(p) {
   return { tiktok: "TikTok screening", nano_banana: "Nano-banana review", kling: "Kling video review" }[p];
 }
 
-function ExamplesGrid({ pool }) {
-  // Each pool has up to 4 example images named good_1.jpg, good_2.jpg, bad_1.jpg, bad_2.jpg in tutorial bucket
-  const examples = ["good_1.jpg", "good_2.jpg", "bad_1.jpg", "bad_2.jpg"];
+function ExamplesGrid({ pool, manifest, state }) {
+  if (state === "loading") {
+    return <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>Loading examples…</p>;
+  }
+  if (state === "error" || !manifest || !manifest[pool]) {
+    return null; // fail quiet — rules still render above
+  }
+
+  const good = manifest[pool].good || [];
+  const bad = manifest[pool].bad || [];
+  const entries = [
+    ...good.map((e, i) => ({ ...e, _side: "good", _key: `g${i}` })),
+    ...bad.map((e, i) => ({ ...e, _side: "bad", _key: `b${i}` })),
+  ];
+
+  if (entries.length === 0) return null;
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 12 }}>
-      {examples.map((f) => {
-        const isGood = f.startsWith("good");
-        return (
-          <div key={f} style={{ position: "relative" }}>
-            <img src={`${TUTORIAL}/${pool}/${f}`} alt={f} style={{ width: "100%", borderRadius: 6, opacity: 0.95 }} />
-            <span style={{
-              position: "absolute", top: 6, left: 6, padding: "2px 6px", borderRadius: 3,
-              fontSize: 10, fontWeight: 700, background: isGood ? "var(--accent-good)" : "var(--accent-bad)", color: "#000",
-            }}>{isGood ? "GOOD" : "BAD"}</span>
-          </div>
-        );
-      })}
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+      gap: 8,
+      marginTop: 12,
+    }}>
+      {entries.map((e) => (
+        <ExampleCell key={e._key} entry={e} isGood={e._side === "good"} />
+      ))}
     </div>
   );
+}
+
+function ExampleCell({ entry, isGood }) {
+  return (
+    <div style={{ position: "relative" }}>
+      <ExampleMedia entry={entry} />
+      <span style={{
+        position: "absolute", top: 6, left: 6, padding: "2px 6px", borderRadius: 3,
+        fontSize: 10, fontWeight: 700, background: isGood ? "var(--accent-good)" : "var(--accent-bad)", color: "#000",
+        pointerEvents: "none",
+      }}>{isGood ? "GOOD" : "BAD"}</span>
+    </div>
+  );
+}
+
+function ExampleMedia({ entry }) {
+  if (entry.type === "video") {
+    return (
+      <video
+        src={safeUrl(entry.url)}
+        controls
+        muted
+        preload="metadata"
+        playsInline
+        style={{ width: "100%", borderRadius: 6, background: "#000", display: "block" }}
+      />
+    );
+  }
+  if (entry.type === "image") {
+    return (
+      <img
+        src={safeUrl(entry.url)}
+        alt=""
+        loading="lazy"
+        style={{ width: "100%", borderRadius: 6, opacity: 0.95, display: "block" }}
+      />
+    );
+  }
+  if (entry.type === "pair") {
+    return (
+      <div style={{ display: "flex", gap: 4 }}>
+        <figure style={{ margin: 0, flex: 1, minWidth: 0 }}>
+          <img
+            src={safeUrl(entry.original_url)}
+            alt=""
+            loading="lazy"
+            style={{ width: "100%", borderRadius: 6, display: "block" }}
+          />
+          <figcaption style={{ fontSize: 9, textAlign: "center", marginTop: 2, opacity: 0.7 }}>Original</figcaption>
+        </figure>
+        <figure style={{ margin: 0, flex: 1, minWidth: 0 }}>
+          <img
+            src={safeUrl(entry.generation_url)}
+            alt=""
+            loading="lazy"
+            style={{ width: "100%", borderRadius: 6, display: "block" }}
+          />
+          <figcaption style={{ fontSize: 9, textAlign: "center", marginTop: 2, opacity: 0.7 }}>AI</figcaption>
+        </figure>
+      </div>
+    );
+  }
+  return null;
 }
