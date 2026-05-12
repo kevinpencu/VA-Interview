@@ -1,10 +1,25 @@
 """Auth helpers: manager JWT verify + candidate session-cookie verify."""
 from __future__ import annotations
 
+from functools import lru_cache
+
 import jwt
 from fastapi import HTTPException
+from jwt import PyJWKClient
 
 from config import load_settings
+
+
+# Supabase issues JWTs in one of two flavors:
+#   - Legacy projects: HS256 signed with the project JWT secret
+#   - Modern projects: ES256/RS256/EdDSA signed asymmetrically, public keys at /auth/v1/.well-known/jwks.json
+# We support both so the same code runs against any project.
+_ASYMMETRIC_ALGS = {"ES256", "RS256", "EdDSA"}
+
+
+@lru_cache(maxsize=1)
+def _jwks_client(supabase_url: str) -> PyJWKClient:
+    return PyJWKClient(f"{supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json")
 
 
 def verify_manager_jwt(authorization_header: str | None) -> dict:
@@ -17,13 +32,31 @@ def verify_manager_jwt(authorization_header: str | None) -> dict:
         raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")
     token = authorization_header.removeprefix("Bearer ").strip()
     settings = load_settings()
+
     try:
-        claims = jwt.decode(
-            token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
+        header = jwt.get_unverified_header(token)
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
+
+    alg = header.get("alg", "HS256")
+    try:
+        if alg == "HS256":
+            claims = jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+        elif alg in _ASYMMETRIC_ALGS:
+            signing_key = _jwks_client(settings.supabase_url).get_signing_key_from_jwt(token)
+            claims = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=[alg],
+                audience="authenticated",
+            )
+        else:
+            raise HTTPException(status_code=401, detail=f"Unsupported alg: {alg}")
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError as e:
