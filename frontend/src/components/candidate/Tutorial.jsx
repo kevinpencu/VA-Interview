@@ -3,32 +3,34 @@ import { candidateApi } from "../../api";
 
 const MANIFEST_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/tutorial/manifest.json`;
 
-const RULES = {
-  tiktok: [
-    "English audio only — songs and voice-over",
-    "American or generic Western style backgrounds — no foreign indoor scenes",
-    "Visually interesting — boring static videos are out",
-    "Recreatable on Kling — no extreme physics, multiple people, or rapid scene cuts",
-    "Not too short or too long (5–30s sweet spot)",
-  ],
-  nano_banana: [
-    "Model identity must match — same face, same body, same bust size as our references",
-    "No clear AI artifacts — extra fingers, melted faces, weird hands",
-    "Outfit and pose must roughly match the reference scene",
-    "Lighting and skin should look like a phone photo, not a studio render",
-  ],
-  kling: [
-    "Realistic motion — no impossible body movements",
-    "Face stays consistent through the whole video",
-    "No flickering, smearing, or warping",
-    "Engaging — not boring or static",
-  ],
+const PAGES = ["overview", "tiktok", "nano_banana", "kling"];
+
+// Per-filename labels for bad-example tiles. Derived from the lesson filenames
+// the seed script uploads. If a filename isn't in this map the tile renders
+// without a caption.
+const BAD_LABELS = {
+  // Bad TikToks
+  "non-english.mp4": "Non-English audio",
+  "switchestolandscape.MP4": "Switches to landscape mid-clip",
+  "toofarback2.mp4": "Girl too far from the camera",
+  "uglybackground:non-english.mp4": "Ugly background + non-English audio",
+  "weirdmovement2.mp4": "Weird / hard-to-copy movement",
+  // Bad Kling
+  "cameramoves2.mp4": "Camera moves",
+  "clearbug.mp4": "Clear bug / artifact",
+  "weirdface6.mp4": "Distorted face",
+  "weirdmovement3.mp4": "Robotic / weird movement",
+  // Bad NanoBanana
+  "differentbackground1.png": "Wrong background",
+  "differentbackground2.png": "Wrong background",
+  "differentgirl1.jpeg": "Different girl (not our model)",
+  "differentgirl2.jpeg": "Different girl (not our model)",
+  "differentpose1.jpeg": "Wrong pose",
+  "differentpose2.jpeg": "Wrong pose",
+  "morph1.jpeg": "Morph (blend of two faces)",
+  "morph2.jpeg": "Morph (blend of two faces)",
 };
 
-// Percent-encode the path portion of a public storage URL. The seed script
-// preserves filenames verbatim (spaces, colons, etc.) so the manifest may
-// contain unencoded URLs; encodeURI handles spaces + special chars without
-// touching the scheme/host.
 function safeUrl(url) {
   if (!url) return url;
   try {
@@ -38,10 +40,23 @@ function safeUrl(url) {
   }
 }
 
+function labelFor(entry) {
+  if (!entry) return null;
+  const u = entry.url || entry.generation_url || entry.original_url;
+  if (!u) return null;
+  try {
+    const fn = decodeURIComponent(u.split("?")[0].split("/").pop());
+    return BAD_LABELS[fn] || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Tutorial({ token, onContinue }) {
+  const [pageIdx, setPageIdx] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [manifest, setManifest] = useState(null);
-  const [manifestState, setManifestState] = useState("loading"); // loading | ok | error
+  const [manifestState, setManifestState] = useState("loading");
 
   useEffect(() => {
     let cancelled = false;
@@ -59,82 +74,337 @@ export default function Tutorial({ token, onContinue }) {
         if (cancelled) return;
         setManifestState("error");
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  async function ack() {
+  async function next() {
+    if (pageIdx < PAGES.length - 1) {
+      setPageIdx(pageIdx + 1);
+      window.scrollTo({ top: 0, behavior: "instant" });
+      return;
+    }
     setSubmitting(true);
     await candidateApi.tutorialAck(token);
     await onContinue();
   }
 
+  function back() {
+    if (pageIdx === 0) return;
+    setPageIdx(pageIdx - 1);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+
+  const page = PAGES[pageIdx];
+  const isLast = pageIdx === PAGES.length - 1;
+
   return (
-    <div style={{ maxWidth: 760, margin: "32px auto", padding: 16 }}>
-      <h1>Read the rules carefully</h1>
-      <p className="muted">After this you'll answer 5 quick questions to confirm you understood. If you fail, the test ends.</p>
+    <div style={{ maxWidth: 800, margin: "24px auto", padding: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <span className="label">Lesson — page {pageIdx + 1} of {PAGES.length}</span>
+        <ProgressDots count={PAGES.length} active={pageIdx} />
+      </div>
 
-      {Object.entries(RULES).map(([pool, rules]) => (
-        <section key={pool} className="card" style={{ marginTop: 24 }}>
-          <h2 style={{ marginTop: 0 }}>{poolName(pool)}</h2>
-          <ul>{rules.map((r) => <li key={r}>{r}</li>)}</ul>
-          <ExamplesGrid pool={pool} manifest={manifest} state={manifestState} />
-        </section>
+      {page === "overview" && <OverviewPage />}
+      {page === "tiktok" && <TikTokPage manifest={manifest} manifestState={manifestState} />}
+      {page === "nano_banana" && <NanoBananaPage manifest={manifest} manifestState={manifestState} />}
+      {page === "kling" && <KlingPage manifest={manifest} manifestState={manifestState} />}
+
+      <NavBar
+        pageIdx={pageIdx}
+        isLast={isLast}
+        submitting={submitting}
+        onBack={back}
+        onNext={next}
+      />
+    </div>
+  );
+}
+
+function ProgressDots({ count, active }) {
+  return (
+    <div style={{ display: "flex", gap: 6 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <span
+          key={i}
+          style={{
+            width: 8, height: 8, borderRadius: 4,
+            background: i === active ? "#fff" : i < active ? "#666" : "#2a2a2a",
+            transition: "background 120ms",
+          }}
+        />
       ))}
+    </div>
+  );
+}
 
-      <button onClick={ack} disabled={submitting}
-        style={{ marginTop: 32, padding: "12px 24px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontWeight: 600 }}>
-        I've read the rules → continue
+function NavBar({ pageIdx, isLast, submitting, onBack, onNext }) {
+  return (
+    <div style={{
+      display: "flex", justifyContent: "space-between", alignItems: "center",
+      marginTop: 48, paddingTop: 16, borderTop: "1px solid #1f1f1f",
+    }}>
+      <button
+        onClick={onBack}
+        disabled={pageIdx === 0}
+        style={{
+          padding: "10px 18px",
+          background: "transparent",
+          color: pageIdx === 0 ? "#444" : "#fff",
+          border: `1px solid ${pageIdx === 0 ? "#222" : "#333"}`,
+          borderRadius: 6,
+          cursor: pageIdx === 0 ? "not-allowed" : "pointer",
+        }}
+      >← Back</button>
+
+      <button
+        onClick={onNext}
+        disabled={submitting}
+        style={{
+          padding: "10px 22px",
+          background: "#fff", color: "#000",
+          border: "none", borderRadius: 6, fontWeight: 600,
+        }}
+      >
+        {submitting ? "Loading…" : isLast ? "Continue to quiz →" : "Next →"}
       </button>
     </div>
   );
 }
 
-function poolName(p) {
-  return { tiktok: "TikTok screening", nano_banana: "Nano-banana review", kling: "Kling video review" }[p];
+// =====================================================================
+// Page 1 — Job overview
+// =====================================================================
+
+function OverviewPage() {
+  return (
+    <article>
+      <h1 style={{ marginTop: 0 }}>The job, in plain terms</h1>
+      <p>You'll help create AI videos of our model to post on Instagram Reels. We don't film her — every frame is generated by AI, using real TikToks as the blueprint.</p>
+      <p>The pipeline is three steps:</p>
+
+      <section className="card" style={{ marginTop: 16 }}>
+        <h2 style={{ marginTop: 0 }}>Step 1 — Pick a TikTok to recreate</h2>
+        <p style={{ marginBottom: 0 }}>
+          Scroll TikTok and find dance or lip-sync videos by other girls. When one fits our criteria, save it.
+          <strong> Most videos won't qualify</strong> — you're being picky on purpose.
+        </p>
+      </section>
+
+      <section className="card" style={{ marginTop: 12 }}>
+        <h2 style={{ marginTop: 0 }}>Step 2 — Generate the first frame with Nano Banana</h2>
+        <p style={{ marginBottom: 0 }}>
+          Nano Banana is an AI image generator. We feed it the first frame of the TikTok plus reference photos of our model.
+          Nano Banana swaps the girl in the frame with our model — same pose, same outfit, same background.
+        </p>
+      </section>
+
+      <section className="card" style={{ marginTop: 12 }}>
+        <h2 style={{ marginTop: 0 }}>Step 3 — Generate the video with Kling</h2>
+        <p style={{ marginBottom: 0 }}>
+          Kling is an AI video generator. We feed it the original TikTok plus the Nano-banana frame. Kling produces a new
+          video that copies the original's motion but with our model as the subject.
+        </p>
+      </section>
+
+      <p style={{ marginTop: 24 }}>
+        You don't need to know the technical details — you'll learn those after you're hired. For now, just understand the goal:{" "}
+        <strong>recreate TikTok dances with our model using AI</strong>. Your job is to judge the work at each step.
+      </p>
+
+      <section className="card" style={{ marginTop: 16, background: "#0d0d1f", border: "1px solid #2a2a4a" }}>
+        <h2 style={{ marginTop: 0 }}>What this test looks like</h2>
+        <p>After this lesson you'll answer a <strong>5-question comprehension check</strong>. You need 4 of 5 correct to continue — fail it and the test ends.</p>
+        <p>Then you'll review three sets of 30 items, one per step:</p>
+        <ul>
+          <li>30 TikToks — <strong>would you save these?</strong></li>
+          <li>30 Nano-banana generations — <strong>would you use these to feed Kling?</strong></li>
+          <li>30 Kling videos — <strong>are these good enough to post?</strong></li>
+        </ul>
+        <p style={{ marginBottom: 0 }}>
+          You can't go back to a previous answer once you click. Read the next three pages carefully — each one explains exactly what to look for.
+        </p>
+      </section>
+    </article>
+  );
 }
 
-function ExamplesGrid({ pool, manifest, state }) {
+// =====================================================================
+// Page 2 — TikTok screening
+// =====================================================================
+
+function TikTokPage({ manifest, manifestState }) {
+  return (
+    <article>
+      <h1 style={{ marginTop: 0 }}>Step 1 — Picking the right TikTok</h1>
+      <p>
+        On the job you'll scroll TikTok looking for dance or lip-sync videos by <strong>American girls</strong>.
+        Most of what you scroll past won't qualify. Be selective.
+      </p>
+
+      <h2 style={{ marginTop: 24 }}>What makes a TikTok worth saving</h2>
+      <ul>
+        <li><strong>English audio.</strong> The song or voice-over must be in English.</li>
+        <li><strong>American-style background.</strong> Usually her bedroom or apartment — typical American girl setting, not a foreign indoor scene.</li>
+        <li><strong>The girl stays mostly in place.</strong> She doesn't wander far from the camera or move back and forth a lot.</li>
+        <li><strong>The dance is simple enough.</strong> Kling can't reproduce hard choreography, especially weird torso movements.</li>
+      </ul>
+
+      <h3 style={{ marginTop: 20 }}>Good examples</h3>
+      <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>Easier dance, girl stays put, English audio, clean American background.</p>
+      <ExamplesGrid items={manifest?.tiktok?.good} state={manifestState} side="good" showLabels={false} />
+
+      <h2 style={{ marginTop: 32 }}>What gets rejected</h2>
+      <ul>
+        <li><strong>Non-English audio</strong></li>
+        <li><strong>Ugly or non-American background</strong></li>
+        <li><strong>Girl moves too far back from the camera</strong></li>
+        <li><strong>Weird or hard-to-recreate dance moves</strong></li>
+        <li><strong>The phone flips to landscape mid-video</strong> — this glitches Kling</li>
+      </ul>
+
+      <h3 style={{ marginTop: 20 }}>Bad examples — one of each failure mode</h3>
+      <ExamplesGrid items={manifest?.tiktok?.bad} state={manifestState} side="bad" showLabels={true} />
+    </article>
+  );
+}
+
+// =====================================================================
+// Page 3 — Nano-banana review
+// =====================================================================
+
+function NanoBananaPage({ manifest, manifestState }) {
+  return (
+    <article>
+      <h1 style={{ marginTop: 0 }}>Step 2 — Judging a Nano-banana generation</h1>
+      <p>
+        After we pick a TikTok, we send its first frame plus reference photos of our model into Nano Banana.
+        The output should be the same frame but with <strong>our model</strong> instead of the original girl.
+        Your job is to confirm Nano Banana did it right.
+      </p>
+
+      <h2 style={{ marginTop: 24 }}>What to compare, in order of priority</h2>
+      <ol>
+        <li><strong>Identity.</strong> The face and body should clearly be our model — not a different girl, not a half-and-half morph of our model and the original.</li>
+        <li><strong>Bust size.</strong> Nano Banana often shrinks the bust. It must match our model's reference photos — consistency across our content matters.</li>
+        <li><strong>Pose.</strong> Same body position as the original frame.</li>
+        <li><strong>Outfit and background.</strong> Identical to the original frame.</li>
+      </ol>
+
+      <h3 style={{ marginTop: 20 }}>Good examples</h3>
+      <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>Left of each pair: the original TikTok frame. Right: Nano Banana's generation. Everything matches — same model, right bust size, same pose, same outfit, same background.</p>
+      <ExamplesGrid items={manifest?.nano_banana?.good} state={manifestState} side="good" showLabels={false} />
+
+      <h2 style={{ marginTop: 32 }}>What gets rejected</h2>
+      <ul>
+        <li><strong>Different girl</strong> — Nano Banana generated someone who isn't our model</li>
+        <li><strong>Morph</strong> — the result looks like a blend of our model and the original girl</li>
+        <li><strong>Wrong pose</strong> — body position drifted from the original frame</li>
+        <li><strong>Wrong background</strong> — Nano Banana invented or swapped the setting</li>
+        <li><strong>Shrunken bust</strong> — body proportions don't match our model's references</li>
+      </ul>
+
+      <h3 style={{ marginTop: 20 }}>Bad examples — grouped by failure mode</h3>
+      <ExamplesGrid items={manifest?.nano_banana?.bad} state={manifestState} side="bad" showLabels={true} />
+    </article>
+  );
+}
+
+// =====================================================================
+// Page 4 — Kling video review
+// =====================================================================
+
+function KlingPage({ manifest, manifestState }) {
+  return (
+    <article>
+      <h1 style={{ marginTop: 0 }}>Step 3 — Judging the final Kling video</h1>
+      <p>
+        Once Nano Banana gives us a good first frame, we send it plus the original TikTok to Kling, which generates the
+        actual video. Your job is to decide if the result is clean enough to post on Instagram.
+      </p>
+
+      <h2 style={{ marginTop: 24 }}>What makes a good Kling video</h2>
+      <p>The video should look <strong>real</strong> — not AI-generated, not robotic. Specifically:</p>
+      <ul>
+        <li><strong>No visible bugs or artifacts.</strong></li>
+        <li><strong>Face stays consistent.</strong> Our model's face doesn't morph, distort, or flicker mid-clip.</li>
+        <li><strong>Movement looks natural.</strong> No robot-stiff motion, no impossible body bending.</li>
+        <li><strong>Camera is static.</strong> It doesn't pan or zoom — Kling shouldn't add motion that wasn't in the original.</li>
+      </ul>
+
+      <h3 style={{ marginTop: 20 }}>Good examples</h3>
+      <ExamplesGrid items={manifest?.kling?.good} state={manifestState} side="good" showLabels={false} />
+
+      <h2 style={{ marginTop: 32 }}>What gets rejected</h2>
+      <ul>
+        <li><strong>Clear bugs</strong> — visible artifacts, glitches, distortion</li>
+        <li><strong>Weird or distorted face</strong> — face morphs, melts, or flickers</li>
+        <li><strong>Robotic motion</strong> — stiff or impossible body movement</li>
+        <li><strong>Camera moves</strong> — pan, zoom, or other motion Kling added on its own</li>
+      </ul>
+
+      <h3 style={{ marginTop: 20 }}>Bad examples — one of each</h3>
+      <ExamplesGrid items={manifest?.kling?.bad} state={manifestState} side="bad" showLabels={true} />
+
+      <section className="card" style={{ marginTop: 40, background: "#0d0d1f", border: "1px solid #2a2a4a" }}>
+        <h2 style={{ marginTop: 0 }}>Before you continue</h2>
+        <p>
+          When you click <strong>Continue to quiz</strong>, you'll answer 5 multiple-choice questions to confirm you understood the rules.
+          You need <strong>4 of 5 correct</strong> to proceed. Fail it and the test ends — there's no retry.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          <strong>Take your time on this lesson.</strong> Use the Back button to re-read anything you're unsure about. Don't continue until you're ready.
+        </p>
+      </section>
+    </article>
+  );
+}
+
+// =====================================================================
+// Shared rendering
+// =====================================================================
+
+function ExamplesGrid({ items, state, side, showLabels }) {
   if (state === "loading") {
     return <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>Loading examples…</p>;
   }
-  if (state === "error" || !manifest || !manifest[pool]) {
-    return null; // fail quiet — rules still render above
+  if (state === "error" || !items || items.length === 0) {
+    return null;
   }
-
-  const good = manifest[pool].good || [];
-  const bad = manifest[pool].bad || [];
-  const entries = [
-    ...good.map((e, i) => ({ ...e, _side: "good", _key: `g${i}` })),
-    ...bad.map((e, i) => ({ ...e, _side: "bad", _key: `b${i}` })),
-  ];
-
-  if (entries.length === 0) return null;
 
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-      gap: 8,
+      gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+      gap: 12,
       marginTop: 12,
     }}>
-      {entries.map((e) => (
-        <ExampleCell key={e._key} entry={e} isGood={e._side === "good"} />
+      {items.map((entry, i) => (
+        <ExampleCell key={i} entry={entry} side={side} showLabel={showLabels} />
       ))}
     </div>
   );
 }
 
-function ExampleCell({ entry, isGood }) {
+function ExampleCell({ entry, side, showLabel }) {
+  const isGood = side === "good";
+  const label = showLabel ? labelFor(entry) : null;
   return (
-    <div style={{ position: "relative" }}>
-      <ExampleMedia entry={entry} />
-      <span style={{
-        position: "absolute", top: 6, left: 6, padding: "2px 6px", borderRadius: 3,
-        fontSize: 10, fontWeight: 700, background: isGood ? "var(--accent-good)" : "var(--accent-bad)", color: "#000",
-        pointerEvents: "none",
-      }}>{isGood ? "GOOD" : "BAD"}</span>
+    <div>
+      <div style={{ position: "relative" }}>
+        <ExampleMedia entry={entry} />
+        <span style={{
+          position: "absolute", top: 6, left: 6, padding: "2px 6px", borderRadius: 3,
+          fontSize: 10, fontWeight: 700,
+          background: isGood ? "var(--accent-good)" : "var(--accent-bad)", color: "#000",
+          pointerEvents: "none",
+        }}>{isGood ? "GOOD" : "BAD"}</span>
+      </div>
+      {label && (
+        <p style={{
+          marginTop: 6, marginBottom: 0,
+          fontSize: 12, color: "#b5b5b5", lineHeight: 1.3,
+        }}>{label}</p>
+      )}
     </div>
   );
 }
@@ -158,7 +428,7 @@ function ExampleMedia({ entry }) {
         src={safeUrl(entry.url)}
         alt=""
         loading="lazy"
-        style={{ width: "100%", borderRadius: 6, opacity: 0.95, display: "block" }}
+        style={{ width: "100%", borderRadius: 6, display: "block" }}
       />
     );
   }
