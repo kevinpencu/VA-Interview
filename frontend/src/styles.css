@@ -484,7 +484,39 @@ button:disabled { cursor: not-allowed; }
   flex-direction: column;
   gap: var(--s-3);
   padding-top: var(--s-2);
+  max-width: 640px;
+  width: 100%;
 }
+.test-step-body.layout-pair .actions-col { margin: 0 auto; }
+
+.reject-checklist {
+  margin-top: var(--s-4);
+  padding: var(--s-4) var(--s-4) var(--s-4) var(--s-5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--bad);
+  border-radius: var(--r-md);
+}
+.reject-checklist .reject-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bad);
+  font-weight: 500;
+  margin-bottom: 10px;
+  display: block;
+}
+.reject-checklist ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--text-sm);
+  color: var(--text-soft);
+}
+.reject-checklist li { margin-bottom: 5px; line-height: 1.45; }
+.reject-checklist li:last-child { margin-bottom: 0; }
+.reject-checklist li::marker { color: var(--bad); }
+.reject-checklist li strong { color: var(--text); font-weight: 600; }
 
 .question {
   font-family: var(--font-sans);

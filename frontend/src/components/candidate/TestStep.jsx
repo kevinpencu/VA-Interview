@@ -10,6 +10,13 @@ const COPY = {
     yes: { label: "Yes, save it", sub: "Worth recreating" },
     no:  { label: "No, skip", sub: "Wrong language / boring / can't recreate" },
     type: "video",
+    rejectIf: [
+      <><strong>Non-English</strong> audio or song</>,
+      <><strong>Ugly or non-American</strong> background</>,
+      <>Girl moves <strong>too far from the camera</strong></>,
+      <><strong>Weird or hard-to-copy</strong> dance moves</>,
+      <>Phone <strong>flips to landscape</strong> mid-video</>,
+    ],
   },
   nano_banana: {
     name: "Nano-banana review",
@@ -18,6 +25,14 @@ const COPY = {
     yes: { label: "Yes, use it", sub: "Identity matches, no artifacts" },
     no:  { label: "No, reject", sub: "Wrong identity / artifacts / off-prompt" },
     type: "pair",
+    rejectIf: [
+      <><strong>Different girl</strong> — not our model</>,
+      <><strong>Morph</strong> — blend of our model and another face</>,
+      <><strong>Wrong pose</strong> vs. the original frame</>,
+      <><strong>Wrong background or outfit</strong></>,
+      <><strong>Shrunken bust</strong> — must match her references</>,
+      <><strong>AI artifacts</strong> — weird hands, extra fingers, melted features</>,
+    ],
   },
   kling: {
     name: "Kling review",
@@ -26,6 +41,13 @@ const COPY = {
     yes: { label: "Good", sub: "Real motion, consistent face" },
     no:  { label: "Bad", sub: "Flicker / warp / inconsistent / boring" },
     type: "video",
+    rejectIf: [
+      <>Any <strong>visible bugs, artifacts, or glitches</strong></>,
+      <>Face <strong>distorts, morphs, or flickers</strong> mid-clip</>,
+      <><strong>Robotic or impossible</strong> body movement</>,
+      <>Camera <strong>pans or zooms</strong> on its own</>,
+      <>Looks <strong>clearly AI-generated</strong> or unreal</>,
+    ],
   },
 };
 
@@ -139,6 +161,13 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
             <span className="answer-main">{c.no.label}</span>
             <span className="answer-sub">{c.no.sub}</span>
           </button>
+
+          <div className="reject-checklist">
+            <span className="reject-label">Reject if you see</span>
+            <ul>
+              {c.rejectIf.map((entry, i) => <li key={i}>{entry}</li>)}
+            </ul>
+          </div>
 
           <div className="keyboard-hint">
             <kbd>←</kbd> reject &nbsp;·&nbsp; <kbd>→</kbd> accept
