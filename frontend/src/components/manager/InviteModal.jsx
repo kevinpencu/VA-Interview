@@ -7,6 +7,7 @@ export default function InviteModal({ token, onClose, onCreated }) {
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   async function go() {
     setSubmitting(true);
@@ -22,31 +23,60 @@ export default function InviteModal({ token, onClose, onCreated }) {
     }
   }
 
+  async function copyUrl() {
+    try {
+      await navigator.clipboard.writeText(result.url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) {
+      // fallback handled via click-to-select
+    }
+  }
+
   return (
-    <div style={overlayStyle}>
-      <div style={modalStyle}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
         {!result ? (
           <>
-            <h3 style={{ marginTop: 0 }}>New invite</h3>
-            <label className="label">Candidate name (label only)</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-            <label className="label">Candidate email (label only)</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" style={inputStyle} />
-            {error && <p style={{ color: "var(--accent-bad)" }}>{error}</p>}
-            <div style={{ textAlign: "right" }}>
-              <button onClick={onClose} style={ghostBtn}>Cancel</button>
-              <button onClick={go} disabled={!name || !email || submitting} style={primaryBtn}>
-                {submitting ? "…" : "Generate link"}
+            <div className="eyebrow">New candidate</div>
+            <h2 style={{ marginTop: 6, fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: 30, marginBottom: 18 }}>
+              Generate an invite
+            </h2>
+            <div style={{ marginBottom: 14 }}>
+              <label className="label" style={{ display: "block", marginBottom: 6 }}>Candidate name <span className="dim">(label only)</span></label>
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" />
+            </div>
+            <div style={{ marginBottom: 18 }}>
+              <label className="label" style={{ display: "block", marginBottom: 6 }}>Candidate email <span className="dim">(label only)</span></label>
+              <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="jane@example.com" />
+            </div>
+            {error && <p style={{ color: "var(--color-bad)", fontSize: "var(--text-sm)", marginBottom: 12 }}>{error}</p>}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={onClose} className="btn btn-ghost">Cancel</button>
+              <button onClick={go} disabled={!name || !email || submitting} className="btn btn-primary">
+                {submitting ? "Creating…" : "Generate link"}
               </button>
             </div>
           </>
         ) : (
           <>
-            <h3 style={{ marginTop: 0 }}>Send this link</h3>
-            <p className="muted">Copy and paste it in WhatsApp. The link is single-use.</p>
-            <input readOnly value={result.url} onClick={(e) => e.target.select()} style={inputStyle} />
-            <div style={{ textAlign: "right" }}>
-              <button onClick={onClose} style={primaryBtn}>Done</button>
+            <div className="eyebrow">Invite ready</div>
+            <h2 style={{ marginTop: 6, fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: 30, marginBottom: 8 }}>
+              Send this link
+            </h2>
+            <p className="muted" style={{ marginBottom: 16, fontSize: "var(--text-sm)" }}>
+              Single-use. Once they click, no one else can.
+            </p>
+            <input
+              className="input mono"
+              readOnly
+              value={result.url}
+              onClick={(e) => e.target.select()}
+              style={{ fontSize: 12, marginBottom: 16 }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={copyUrl} className="btn btn-ghost">{copied ? "✓ Copied" : "Copy"}</button>
+              <button onClick={onClose} className="btn btn-primary">Done</button>
             </div>
           </>
         )}
@@ -54,9 +84,3 @@ export default function InviteModal({ token, onClose, onCreated }) {
     </div>
   );
 }
-
-const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 };
-const modalStyle = { background: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 24, width: 480 };
-const inputStyle = { width: "100%", padding: 10, marginTop: 4, marginBottom: 16, background: "#0a0a0a", color: "#fff", border: "1px solid #2a2a2a", borderRadius: 6 };
-const primaryBtn = { padding: "8px 16px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontWeight: 600, marginLeft: 8 };
-const ghostBtn = { padding: "8px 16px", background: "transparent", color: "#fff", border: "1px solid #333", borderRadius: 6 };

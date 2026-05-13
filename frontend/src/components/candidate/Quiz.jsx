@@ -65,30 +65,66 @@ export default function Quiz({ token, onPass, onFail }) {
   const allAnswered = answers.every((a) => a !== null);
 
   return (
-    <div style={{ maxWidth: 720, margin: "32px auto", padding: 16 }}>
-      <h1>Comprehension check</h1>
-      <p className="muted">Answer all 5 questions. You need at least 4 correct to continue.</p>
+    <div className="wizard">
+      <div className="eyebrow fade-in">Quick check</div>
+      <h1 className="fade-in-1" style={{ fontSize: 48, marginBottom: 8 }}>
+        Did you read the rules?
+      </h1>
+      <p className="muted fade-in-1" style={{ marginBottom: 32 }}>
+        Five questions. Get at least four right to continue — fail and the test ends.
+      </p>
+
       {QUIZ.map((q, qi) => (
-        <div key={qi} className="card" style={{ marginTop: 16 }}>
-          <p style={{ marginTop: 0, fontWeight: 600 }}>{qi + 1}. {q.q}</p>
-          {q.options.map((opt, oi) => (
-            <label key={oi} style={{ display: "block", padding: "6px 0" }}>
-              <input
-                type="radio"
-                name={`q-${qi}`}
-                checked={answers[qi] === oi}
-                onChange={() => set(qi, oi)}
-                style={{ marginRight: 8 }}
-              />
-              {opt}
-            </label>
-          ))}
+        <div key={qi} className="card fade-in-2" style={{ marginTop: 16 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "baseline", marginBottom: 14 }}>
+            <span className="mono" style={{ color: "var(--color-accent)", fontSize: 13, minWidth: 22 }}>
+              {String(qi + 1).padStart(2, "0")}
+            </span>
+            <p style={{ margin: 0, fontSize: "var(--text-lg)", color: "var(--color-text)" }}>{q.q}</p>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {q.options.map((opt, oi) => {
+              const checked = answers[qi] === oi;
+              return (
+                <label
+                  key={oi}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "12px 14px",
+                    borderRadius: 6,
+                    border: `1px solid ${checked ? "var(--color-accent-dim)" : "var(--color-border)"}`,
+                    background: checked ? "var(--color-accent-glow)" : "transparent",
+                    color: checked ? "var(--color-text)" : "var(--color-text-soft)",
+                    cursor: "pointer",
+                    transition: "border-color 120ms ease, background 120ms ease, color 120ms ease",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name={`q-${qi}`}
+                    checked={checked}
+                    onChange={() => set(qi, oi)}
+                    style={{ accentColor: "var(--color-accent)" }}
+                  />
+                  <span>{opt}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
       ))}
-      {error && <p style={{ color: "var(--accent-bad)" }}>{error}</p>}
-      <button onClick={submit} disabled={!allAnswered || submitting}
-        style={{ marginTop: 24, padding: "12px 24px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontWeight: 600 }}>
-        {submitting ? "Submitting…" : "Submit answers"}
+
+      {error && <p style={{ color: "var(--color-bad)", marginTop: 16 }}>{error}</p>}
+
+      <button
+        onClick={submit}
+        disabled={!allAnswered || submitting}
+        className="btn btn-primary fade-in-3"
+        style={{ marginTop: 32, padding: "14px 28px" }}
+      >
+        {submitting ? "Submitting…" : "Submit answers  →"}
       </button>
     </div>
   );

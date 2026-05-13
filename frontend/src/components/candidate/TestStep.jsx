@@ -4,32 +4,51 @@ import JustificationModal from "./JustificationModal.jsx";
 
 const COPY = {
   tiktok: {
-    question: "Would you save this TikTok for recreation?",
-    yes: { label: "Yes, save this", sub: "Worth recreating" },
+    name: "TikTok screening",
+    short: "TikTok",
+    question: "Would you save this TikTok?",
+    yes: { label: "Yes, save it", sub: "Worth recreating" },
     no:  { label: "No, skip", sub: "Wrong language / boring / can't recreate" },
     type: "video",
   },
   nano_banana: {
-    question: "Would you use this generation to feed Kling?",
-    yes: { label: "Yes, use this", sub: "Identity matches, no AI artifacts" },
+    name: "Nano-banana review",
+    short: "Nano-banana",
+    question: "Would you use this generation?",
+    yes: { label: "Yes, use it", sub: "Identity matches, no artifacts" },
     no:  { label: "No, reject", sub: "Wrong identity / artifacts / off-prompt" },
-    type: "image",
+    type: "pair",
   },
   kling: {
-    question: "Did this Kling video come out well?",
-    yes: { label: "Good", sub: "Realistic motion, consistent face" },
+    name: "Kling review",
+    short: "Kling",
+    question: "Did this come out well?",
+    yes: { label: "Good", sub: "Real motion, consistent face" },
     no:  { label: "Bad", sub: "Flicker / warp / inconsistent / boring" },
     type: "video",
   },
 };
+
+function requestFullscreen(el) {
+  if (!el) return;
+  if (el.requestFullscreen) return el.requestFullscreen();
+  if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+  if (el.webkitEnterFullscreen) return el.webkitEnterFullscreen();
+}
+
+function stepNumber(p) { return { tiktok: 1, nano_banana: 2, kling: 3 }[p]; }
 
 export default function TestStep({ token, pool, item, progress, onAdvance }) {
   const c = COPY[pool];
   const [shownAt] = useState(() => new Date().toISOString());
   const startMs = useRef(performance.now());
   const [submitting, setSubmitting] = useState(false);
-  const [pendingJustification, setPendingJustification] = useState(null); // { decisionId } when needed
+  const [pendingJustification, setPendingJustification] = useState(null);
   const [pendingAdvance, setPendingAdvance] = useState(null);
+
+  useEffect(() => {
+    startMs.current = performance.now();
+  }, [item.id]);
 
   async function answer(value) {
     if (submitting || pendingJustification) return;
@@ -41,9 +60,7 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
       });
       if (res.needs_justification) {
         setPendingJustification({ decisionId: res.decision_id });
-        setPendingAdvance(() => async () => {
-          await onAdvance(res.next);
-        });
+        setPendingAdvance(() => async () => { await onAdvance(res.next); });
       } else {
         await onAdvance(res.next);
       }
@@ -55,19 +72,19 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
   useEffect(() => {
     function onKey(e) {
       if (pendingJustification) return;
-      if (e.key === "ArrowRight") answer(true);
-      if (e.key === "ArrowLeft") answer(false);
+      const tag = e.target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "ArrowRight") { e.preventDefault(); answer(true); }
+      if (e.key === "ArrowLeft")  { e.preventDefault(); answer(false); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingJustification, item.id]);
 
+  // Suppress accidental navigation away mid-test
   useEffect(() => {
-    function onBeforeUnload(e) {
-      e.preventDefault();
-      e.returnValue = "";
-      return "";
-    }
+    function onBeforeUnload(e) { e.preventDefault(); e.returnValue = ""; }
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
@@ -78,55 +95,57 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
     if (pendingAdvance) await pendingAdvance();
   }
 
+  const isPair = c.type === "pair";
+
   return (
-    <div style={{ maxWidth: 880, margin: "32px auto", padding: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-        <span className="label">Step {stepNumber(pool)} — {stepName(pool)}</span>
-        <span className="label">{progress + 1} / 30</span>
-      </div>
-      <div style={{ display: "flex", gap: 24, alignItems: "stretch", background: "#0d0d0d", padding: 24, borderRadius: 8 }}>
-        <div style={{ flexShrink: 0 }}>
-          {c.type === "video" ? (
-            <video
-              key={item.id}
-              src={item.storage_url}
-              controls autoPlay
-              style={{ width: 240, aspectRatio: "9/16", borderRadius: 6, background: "#000" }}
-            />
-          ) : item.reference_url ? (
-            <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-              <div>
-                <div className="label" style={{ marginBottom: 6 }}>Original frame</div>
-                <img src={item.reference_url} alt="" style={{ width: 200, borderRadius: 6, display: "block" }} />
-              </div>
-              <div>
-                <div className="label" style={{ marginBottom: 6 }}>AI generation</div>
-                <img src={item.storage_url} alt="" style={{ width: 320, borderRadius: 6, display: "block" }} />
-              </div>
-            </div>
-          ) : (
-            <img
-              src={item.storage_url}
-              alt=""
-              style={{ width: 320, borderRadius: 6 }}
-            />
-          )}
+    <div className="test-step">
+      <header className="test-step-header">
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span className="label">Step {stepNumber(pool)} of 3</span>
+          <span style={{ fontFamily: "var(--font-display)", fontSize: 26, letterSpacing: "-0.015em" }}>
+            {c.name}
+          </span>
         </div>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 12 }}>
-          <p style={{ fontSize: 16, color: "#bbb", margin: 0 }}>{c.question}</p>
-          <button onClick={() => answer(true)} disabled={submitting}
-            style={btnStyle("good")}>
-            <span style={{ fontWeight: 600 }}>{c.yes.label}</span>
-            <span className="muted" style={{ display: "block", fontSize: 11, marginTop: 4 }}>{c.yes.sub}</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+          <span className="label">Progress</span>
+          <span className="mono" style={{ fontSize: 22, color: "var(--color-accent)", letterSpacing: "0.04em" }}>
+            {String(progress + 1).padStart(2, "0")}
+            <span className="dim" style={{ margin: "0 4px" }}>/</span>
+            30
+          </span>
+        </div>
+      </header>
+
+      <div className={`test-step-body ${isPair ? "layout-pair" : "layout-video"}`} key={item.id}>
+        {isPair ? <NanoBananaContent item={item} /> : <VideoContent item={item} />}
+
+        <div className="actions-col fade-in-1">
+          <h2 className="question">{c.question}</h2>
+
+          <button
+            className="answer-btn btn-good"
+            onClick={() => answer(true)}
+            disabled={submitting}
+          >
+            <span className="answer-main">{c.yes.label}</span>
+            <span className="answer-sub">{c.yes.sub}</span>
           </button>
-          <button onClick={() => answer(false)} disabled={submitting}
-            style={btnStyle("bad")}>
-            <span style={{ fontWeight: 600 }}>{c.no.label}</span>
-            <span className="muted" style={{ display: "block", fontSize: 11, marginTop: 4 }}>{c.no.sub}</span>
+
+          <button
+            className="answer-btn btn-bad"
+            onClick={() => answer(false)}
+            disabled={submitting}
+          >
+            <span className="answer-main">{c.no.label}</span>
+            <span className="answer-sub">{c.no.sub}</span>
           </button>
-          <span className="label" style={{ marginTop: 8 }}>← reject  /  → accept</span>
+
+          <div className="keyboard-hint">
+            <kbd>←</kbd> reject &nbsp;·&nbsp; <kbd>→</kbd> accept
+          </div>
         </div>
       </div>
+
       {pendingJustification && (
         <JustificationModal onSubmit={submitJustification} onCancel={() => {}} />
       )}
@@ -134,15 +153,75 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
   );
 }
 
-function stepName(p) { return { tiktok: "TikTok review", nano_banana: "Nano-banana review", kling: "Kling video review" }[p]; }
-function stepNumber(p) { return { tiktok: 1, nano_banana: 2, kling: 3 }[p]; }
-function btnStyle(kind) {
-  const palette = kind === "good"
-    ? { bg: "#1f3a1f", color: "#b5f5b5", border: "#2a5a2a" }
-    : { bg: "#3a1f1f", color: "#f5b5b5", border: "#5a2a2a" };
-  return {
-    padding: "16px 18px", background: palette.bg, color: palette.color,
-    border: `1px solid ${palette.border}`, borderRadius: 6,
-    textAlign: "left", fontSize: 14,
-  };
+/* --- Video content (TikTok / Kling) ---------------------------- */
+
+function VideoContent({ item }) {
+  const ref = useRef(null);
+  return (
+    <div className="media-block fade-in">
+      <div className="media-frame aspect-9-16">
+        <video ref={ref} src={item.storage_url} controls autoPlay playsInline />
+      </div>
+      <div className="fullscreen-bar">
+        <button className="btn-icon" onClick={() => requestFullscreen(ref.current)}>
+          ⛶ &nbsp;Fullscreen
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* --- Nano-banana content — original + AI side-by-side --------- */
+
+function NanoBananaContent({ item }) {
+  const [lightbox, setLightbox] = useState(null);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    function onEsc(e) { if (e.key === "Escape") setLightbox(null); }
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [lightbox]);
+
+  return (
+    <div className="media-block fade-in">
+      <div className="nb-pair-row">
+        <NBImage
+          src={item.reference_url}
+          label="Original TikTok frame"
+          onZoom={() => setLightbox({ src: item.reference_url, label: "Original TikTok frame" })}
+        />
+        <NBImage
+          src={item.storage_url}
+          label="Nano-banana generation"
+          accent
+          onZoom={() => setLightbox({ src: item.storage_url, label: "Nano-banana generation" })}
+        />
+      </div>
+
+      {lightbox && (
+        <div className="lightbox" onClick={() => setLightbox(null)}>
+          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <span className="label-accent" style={{ alignSelf: "flex-start" }}>{lightbox.label}</span>
+            <img src={lightbox.src} alt="" />
+          </div>
+          <button className="lightbox-close" onClick={() => setLightbox(null)}>Esc · Close</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NBImage({ src, label, onZoom, accent }) {
+  return (
+    <div className="nb-side">
+      <div className="nb-caption">
+        <span className={accent ? "label-accent" : "label"}>{label}</span>
+        <button className="btn-icon" onClick={onZoom} aria-label="Open fullscreen">⛶</button>
+      </div>
+      <div className="media-frame">
+        <img src={src} alt="" onClick={onZoom} style={{ cursor: "zoom-in" }} />
+      </div>
+    </div>
+  );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function JustificationModal({ onSubmit, onCancel }) {
+export default function JustificationModal({ onSubmit }) {
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -11,13 +11,13 @@ export default function JustificationModal({ onSubmit, onCancel }) {
   }
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
-    }}>
-      <div style={{ background: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 24, width: 480 }}>
-        <h3 style={{ marginTop: 0 }}>One sentence — why?</h3>
-        <p className="muted" style={{ marginTop: 0 }}>
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="eyebrow">Why?</div>
+        <h2 style={{ marginTop: 6, marginBottom: 8, fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: 30 }}>
+          One sentence
+        </h2>
+        <p className="muted" style={{ marginBottom: 16, fontSize: "var(--text-sm)" }}>
           Briefly explain your decision. This helps us understand your reasoning.
         </p>
         <textarea
@@ -25,12 +25,13 @@ export default function JustificationModal({ onSubmit, onCancel }) {
           onChange={(e) => setText(e.target.value)}
           rows={4}
           autoFocus
-          style={{ width: "100%", padding: 10, background: "#0a0a0a", color: "#fff", border: "1px solid #2a2a2a", borderRadius: 6 }}
+          className="input"
+          placeholder="e.g. the background is clearly non-American and the song is in Spanish"
+          style={{ resize: "vertical", minHeight: 96, fontFamily: "var(--font-sans)" }}
         />
-        <div style={{ marginTop: 16, textAlign: "right" }}>
-          <button onClick={go} disabled={submitting || !text.trim()}
-            style={{ padding: "10px 20px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontWeight: 600 }}>
-            {submitting ? "…" : "Continue"}
+        <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={go} disabled={submitting || !text.trim()} className="btn btn-primary">
+            {submitting ? "Continuing…" : "Continue  →"}
           </button>
         </div>
       </div>

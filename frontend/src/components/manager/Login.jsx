@@ -18,26 +18,47 @@ export default function Login({ onLogin }) {
   }
 
   return (
-    <div style={{ maxWidth: 360, margin: "120px auto", padding: 16 }}>
-      <h1>Manager login</h1>
-      <form onSubmit={submit}>
-        <label className="label">Email</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required
-          style={inputStyle} />
-        <label className="label">Password</label>
-        <input value={pw} onChange={(e) => setPw(e.target.value)} type="password" required
-          style={inputStyle} />
-        {error && <p style={{ color: "var(--accent-bad)" }}>{error}</p>}
-        <button disabled={submitting}
-          style={{ padding: "12px 24px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontWeight: 600, marginTop: 8 }}>
-          {submitting ? "Signing in…" : "Sign in"}
+    <div className="intro-shell" style={{ maxWidth: 400 }}>
+      <div className="eyebrow fade-in">VA Interview · Admin</div>
+      <h1 className="title-display fade-in-1" style={{ fontSize: 56 }}>
+        <em>Sign in</em>
+      </h1>
+      <p className="muted fade-in-1" style={{ marginTop: 12, marginBottom: 32 }}>
+        Manager access only.
+      </p>
+
+      <form onSubmit={submit} className="fade-in-2">
+        <div style={{ marginBottom: 16 }}>
+          <label className="label" style={{ display: "block", marginBottom: 6 }}>Email</label>
+          <input
+            className="input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            required
+            placeholder="manager@example.com"
+          />
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <label className="label" style={{ display: "block", marginBottom: 6 }}>Password</label>
+          <input
+            className="input"
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+            type="password"
+            required
+            placeholder="••••••••"
+          />
+        </div>
+        {error && (
+          <p style={{ color: "var(--color-bad)", marginBottom: 16, fontSize: "var(--text-sm)" }}>
+            {error}
+          </p>
+        )}
+        <button disabled={submitting} className="btn btn-primary" style={{ width: "100%" }}>
+          {submitting ? "Signing in…" : "Sign in  →"}
         </button>
       </form>
     </div>
   );
 }
-
-const inputStyle = {
-  width: "100%", padding: 10, marginTop: 4, marginBottom: 16,
-  background: "#141414", color: "#fff", border: "1px solid #333", borderRadius: 6,
-};

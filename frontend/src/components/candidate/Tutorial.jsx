@@ -98,16 +98,23 @@ export default function Tutorial({ token, onContinue }) {
   const isLast = pageIdx === PAGES.length - 1;
 
   return (
-    <div style={{ maxWidth: 800, margin: "24px auto", padding: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <span className="label">Lesson — page {pageIdx + 1} of {PAGES.length}</span>
+    <div className="wizard">
+      <div className="wizard-header fade-in">
+        <div>
+          <div className="eyebrow">Lesson</div>
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 22, marginTop: 4, letterSpacing: "-0.01em" }}>
+            Page {pageIdx + 1} <span className="dim"> / {PAGES.length}</span>
+          </div>
+        </div>
         <ProgressDots count={PAGES.length} active={pageIdx} />
       </div>
 
-      {page === "overview" && <OverviewPage />}
-      {page === "tiktok" && <TikTokPage manifest={manifest} manifestState={manifestState} />}
-      {page === "nano_banana" && <NanoBananaPage manifest={manifest} manifestState={manifestState} />}
-      {page === "kling" && <KlingPage manifest={manifest} manifestState={manifestState} />}
+      <div key={page} className="fade-in">
+        {page === "overview" && <OverviewPage />}
+        {page === "tiktok" && <TikTokPage manifest={manifest} manifestState={manifestState} />}
+        {page === "nano_banana" && <NanoBananaPage manifest={manifest} manifestState={manifestState} />}
+        {page === "kling" && <KlingPage manifest={manifest} manifestState={manifestState} />}
+      </div>
 
       <NavBar
         pageIdx={pageIdx}
@@ -122,15 +129,11 @@ export default function Tutorial({ token, onContinue }) {
 
 function ProgressDots({ count, active }) {
   return (
-    <div style={{ display: "flex", gap: 6 }}>
+    <div className="dots">
       {Array.from({ length: count }).map((_, i) => (
         <span
           key={i}
-          style={{
-            width: 8, height: 8, borderRadius: 4,
-            background: i === active ? "#fff" : i < active ? "#666" : "#2a2a2a",
-            transition: "background 120ms",
-          }}
+          className={`dot ${i === active ? "active" : i < active ? "done" : ""}`}
         />
       ))}
     </div>
@@ -139,32 +142,9 @@ function ProgressDots({ count, active }) {
 
 function NavBar({ pageIdx, isLast, submitting, onBack, onNext }) {
   return (
-    <div style={{
-      display: "flex", justifyContent: "space-between", alignItems: "center",
-      marginTop: 48, paddingTop: 16, borderTop: "1px solid #1f1f1f",
-    }}>
-      <button
-        onClick={onBack}
-        disabled={pageIdx === 0}
-        style={{
-          padding: "10px 18px",
-          background: "transparent",
-          color: pageIdx === 0 ? "#444" : "#fff",
-          border: `1px solid ${pageIdx === 0 ? "#222" : "#333"}`,
-          borderRadius: 6,
-          cursor: pageIdx === 0 ? "not-allowed" : "pointer",
-        }}
-      >← Back</button>
-
-      <button
-        onClick={onNext}
-        disabled={submitting}
-        style={{
-          padding: "10px 22px",
-          background: "#fff", color: "#000",
-          border: "none", borderRadius: 6, fontWeight: 600,
-        }}
-      >
+    <div className="wizard-nav">
+      <button onClick={onBack} disabled={pageIdx === 0} className="btn btn-ghost">← Back</button>
+      <button onClick={onNext} disabled={submitting} className="btn btn-primary">
         {submitting ? "Loading…" : isLast ? "Continue to quiz →" : "Next →"}
       </button>
     </div>
@@ -284,16 +264,18 @@ function NanoBananaPage({ manifest, manifestState }) {
       </p>
 
       {refs.length > 0 && (
-        <section className="card" style={{ marginTop: 16 }}>
-          <h2 style={{ marginTop: 0 }}>This is our model</h2>
-          <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+        <section className="card-accent" style={{ marginTop: 24 }}>
+          <div className="eyebrow">Reference</div>
+          <h2 style={{ marginTop: 4, fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: 30 }}>
+            This is our model
+          </h2>
+          <p className="muted" style={{ marginTop: 8, fontSize: "var(--text-sm)", marginBottom: 16 }}>
             Memorize her face, body, and especially her bust size. Every generation you accept needs to look like the same person.
           </p>
           <div style={{
             display: "grid",
             gridTemplateColumns: `repeat(${Math.min(refs.length, 4)}, 1fr)`,
             gap: 12,
-            marginTop: 12,
           }}>
             {refs.map((r, i) => (
               <img
@@ -301,7 +283,12 @@ function NanoBananaPage({ manifest, manifestState }) {
                 src={safeUrl(r.url)}
                 alt=""
                 loading="lazy"
-                style={{ width: "100%", borderRadius: 6, display: "block" }}
+                style={{
+                  width: "100%",
+                  borderRadius: "var(--r-md)",
+                  display: "block",
+                  border: "1px solid var(--color-border-strong)",
+                }}
               />
             ))}
           </div>
@@ -398,12 +385,7 @@ function ExamplesGrid({ items, state, side, showLabels }) {
   }
 
   return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-      gap: 12,
-      marginTop: 12,
-    }}>
+    <div className="example-grid">
       {items.map((entry, i) => (
         <ExampleCell key={i} entry={entry} side={side} showLabel={showLabels} />
       ))}
@@ -415,22 +397,10 @@ function ExampleCell({ entry, side, showLabel }) {
   const isGood = side === "good";
   const label = showLabel ? labelFor(entry) : null;
   return (
-    <div>
-      <div style={{ position: "relative" }}>
-        <ExampleMedia entry={entry} />
-        <span style={{
-          position: "absolute", top: 6, left: 6, padding: "2px 6px", borderRadius: 3,
-          fontSize: 10, fontWeight: 700,
-          background: isGood ? "var(--accent-good)" : "var(--accent-bad)", color: "#000",
-          pointerEvents: "none",
-        }}>{isGood ? "GOOD" : "BAD"}</span>
-      </div>
-      {label && (
-        <p style={{
-          marginTop: 6, marginBottom: 0,
-          fontSize: 12, color: "#b5b5b5", lineHeight: 1.3,
-        }}>{label}</p>
-      )}
+    <div className="example-tile">
+      <span className={`example-badge ${isGood ? "good" : "bad"}`}>{isGood ? "GOOD" : "BAD"}</span>
+      <ExampleMedia entry={entry} />
+      {label && <div className="example-caption">{label}</div>}
     </div>
   );
 }
@@ -444,41 +414,23 @@ function ExampleMedia({ entry }) {
         muted
         preload="metadata"
         playsInline
-        style={{ width: "100%", borderRadius: 6, background: "#000", display: "block" }}
       />
     );
   }
   if (entry.type === "image") {
-    return (
-      <img
-        src={safeUrl(entry.url)}
-        alt=""
-        loading="lazy"
-        style={{ width: "100%", borderRadius: 6, display: "block" }}
-      />
-    );
+    return <img src={safeUrl(entry.url)} alt="" loading="lazy" />;
   }
   if (entry.type === "pair") {
     return (
-      <div style={{ display: "flex", gap: 4 }}>
-        <figure style={{ margin: 0, flex: 1, minWidth: 0 }}>
-          <img
-            src={safeUrl(entry.original_url)}
-            alt=""
-            loading="lazy"
-            style={{ width: "100%", borderRadius: 6, display: "block" }}
-          />
-          <figcaption style={{ fontSize: 9, textAlign: "center", marginTop: 2, opacity: 0.7 }}>Original</figcaption>
-        </figure>
-        <figure style={{ margin: 0, flex: 1, minWidth: 0 }}>
-          <img
-            src={safeUrl(entry.generation_url)}
-            alt=""
-            loading="lazy"
-            style={{ width: "100%", borderRadius: 6, display: "block" }}
-          />
-          <figcaption style={{ fontSize: 9, textAlign: "center", marginTop: 2, opacity: 0.7 }}>AI</figcaption>
-        </figure>
+      <div className="example-pair">
+        <div className="pair-side">
+          <img src={safeUrl(entry.original_url)} alt="" loading="lazy" />
+          <span className="pair-tag">ORIGINAL</span>
+        </div>
+        <div className="pair-side">
+          <img src={safeUrl(entry.generation_url)} alt="" loading="lazy" />
+          <span className="pair-tag">AI</span>
+        </div>
       </div>
     );
   }

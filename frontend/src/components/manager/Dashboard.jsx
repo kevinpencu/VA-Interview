@@ -17,54 +17,86 @@ export default function Dashboard({ jwt }) {
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div style={{ maxWidth: 1100, margin: "32px auto", padding: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 style={{ margin: 0 }}>Candidates</h1>
-        <div style={{ display: "flex", gap: 8 }}>
+    <div className="admin-shell">
+      <header className="admin-topbar fade-in">
+        <div className="left">
+          <span className="eyebrow">VA Interview · Admin</span>
+          <h1 className="title-display" style={{ fontSize: 44, margin: 0 }}>
+            <em>Candidates</em>
+          </h1>
+        </div>
+        <div className="actions">
           <button
+            className="btn btn-ghost"
+            title="Open a fresh candidate session in a new tab. Doesn't appear in the candidates list."
             onClick={async () => {
               const { token } = await managerApi.createPreviewInvite(jwt);
               window.open(`${window.location.origin}/test/${token}`, "_blank", "noopener");
             }}
-            title="Open a fresh candidate session in a new tab. Doesn't appear in the candidates list."
-            style={{ padding: "8px 16px", background: "transparent", color: "#fff", border: "1px solid #333", borderRadius: 6, fontWeight: 500 }}>
-            👁 Preview as candidate
+          >
+            ⛶ &nbsp;Preview as candidate
           </button>
-          <button onClick={() => setShowInvite(true)}
-            style={{ padding: "8px 16px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontWeight: 600 }}>
+          <button className="btn btn-primary" onClick={() => setShowInvite(true)}>
             + New invite
           </button>
         </div>
-      </div>
-      {loading ? <p>Loading…</p> : (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 24 }}>
+      </header>
+
+      {loading ? (
+        <p className="muted">Loading…</p>
+      ) : rows.length === 0 ? (
+        <div className="card-elevated fade-in-1" style={{ textAlign: "center", padding: 64 }}>
+          <h2 style={{ marginBottom: 8 }}>No candidates yet</h2>
+          <p className="muted" style={{ marginBottom: 24 }}>
+            Generate an invite and share it with your first candidate.
+          </p>
+          <button className="btn btn-primary" onClick={() => setShowInvite(true)}>
+            + Create first invite
+          </button>
+        </div>
+      ) : (
+        <table className="table fade-in-1">
           <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #2a2a2a" }}>
-              <th style={th}>Name</th>
-              <th style={th}>Status</th>
-              <th style={th}>Recommendation</th>
-              <th style={th}>Manager</th>
-              <th style={th}>Total time</th>
-              <th style={th}>Invited</th>
+            <tr>
+              <th>Candidate</th>
+              <th>Status</th>
+              <th>Recommendation</th>
+              <th>Manager</th>
+              <th>Total time</th>
+              <th>Invited</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} style={{ borderBottom: "1px solid #1a1a1a" }}>
-                <td style={td}>
-                  <Link to={`/admin/candidates/${r.id}`}>{r.candidate_name || r.invited_label || "—"}</Link>
-                  <div className="muted" style={{ fontSize: 11 }}>{r.candidate_email || r.invited_label_email || ""}</div>
+              <tr key={r.id}>
+                <td>
+                  <Link
+                    to={`/admin/candidates/${r.id}`}
+                    style={{ color: "var(--color-text)", borderBottom: "1px solid var(--color-border-strong)" }}
+                  >
+                    {r.candidate_name || r.invited_label || "—"}
+                  </Link>
+                  <div className="muted mono" style={{ fontSize: 11, marginTop: 2 }}>
+                    {r.candidate_email || r.invited_label_email || ""}
+                  </div>
                 </td>
-                <td style={td}>{statusOf(r)}</td>
-                <td style={td}><RecBadge rec={r.recommendation} /></td>
-                <td style={td}>{r.manager_decision || "—"}</td>
-                <td style={td}>{r.total_time_seconds ? `${Math.round(r.total_time_seconds / 60)}m` : "—"}</td>
-                <td style={td}>{new Date(r.created_at).toLocaleString()}</td>
+                <td><StatusPill row={r} /></td>
+                <td><RecBadge rec={r.recommendation} /></td>
+                <td className="muted">{r.manager_decision || "—"}</td>
+                <td className="mono dim" style={{ fontSize: 13 }}>
+                  {r.total_time_seconds ? `${Math.round(r.total_time_seconds / 60)}m` : "—"}
+                </td>
+                <td className="dim" style={{ fontSize: 13 }}>
+                  {new Date(r.created_at).toLocaleDateString(undefined, {
+                    month: "short", day: "numeric",
+                  })}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
       {showInvite && (
         <InviteModal
           token={jwt}
@@ -76,21 +108,14 @@ export default function Dashboard({ jwt }) {
   );
 }
 
-function statusOf(r) {
-  if (r.submitted_at) return "Submitted";
-  if (r.started_at) return "In progress";
-  return "Invited";
+function StatusPill({ row }) {
+  if (row.submitted_at) return <span className="badge badge-neutral">Submitted</span>;
+  if (row.started_at) return <span className="badge badge-borderline">In progress</span>;
+  return <span className="badge badge-neutral">Invited</span>;
 }
 
 function RecBadge({ rec }) {
-  if (!rec) return <span className="muted">—</span>;
-  const color = { pass: "#22c55e", borderline: "#f59e0b", fail: "#ef4444" }[rec];
-  return (
-    <span style={{ background: color, color: "#000", padding: "2px 8px", borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
-      {rec.toUpperCase()}
-    </span>
-  );
+  if (!rec) return <span className="dim">—</span>;
+  const klass = { pass: "badge-pass", borderline: "badge-borderline", fail: "badge-fail" }[rec];
+  return <span className={`badge ${klass}`}>{rec}</span>;
 }
-
-const th = { padding: "12px 8px", fontSize: 11, textTransform: "uppercase", color: "#888", letterSpacing: 0.05 };
-const td = { padding: "12px 8px" };

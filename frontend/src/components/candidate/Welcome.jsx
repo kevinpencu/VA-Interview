@@ -22,33 +22,56 @@ export default function Welcome({ token, onStarted }) {
   }
 
   return (
-    <div style={{ maxWidth: 480, margin: "80px auto", padding: 16 }}>
-      <h1>VA Interview Test</h1>
-      <p className="muted">
-        This test takes about 30–45 minutes. You must complete it in one sitting on a desktop browser.
-        You cannot pause or retake. Make sure you have audio enabled.
-      </p>
-      <form onSubmit={submit} style={{ marginTop: 24 }}>
-        <label className="label">Full name</label>
-        <input
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={{ width: "100%", padding: 10, marginTop: 4, marginBottom: 16, background: "#141414", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
-        />
-        <label className="label">Email</label>
-        <input
-          required type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ width: "100%", padding: 10, marginTop: 4, marginBottom: 16, background: "#141414", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
-        />
-        {error && <p style={{ color: "var(--accent-bad)" }}>{error}</p>}
+    <div className="intro-shell">
+      <div className="eyebrow fade-in">VA Interview</div>
+      <h1 className="title-display fade-in-1">
+        Welcome.<br />
+        Let's see <em>how you'd</em><br />judge our content.
+      </h1>
+
+      <div className="card-accent fade-in-2" style={{ marginTop: 40 }}>
+        <p style={{ marginBottom: 8 }}>
+          This takes about <strong>30–45 minutes</strong>. Complete it in one sitting on a desktop browser.
+        </p>
+        <p style={{ marginBottom: 0, color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
+          You can't pause or retake. Make sure your audio is on.
+        </p>
+      </div>
+
+      <form onSubmit={submit} className="fade-in-3" style={{ marginTop: 40 }}>
+        <div style={{ marginBottom: 18 }}>
+          <label className="label" style={{ display: "block", marginBottom: 6 }}>Full name</label>
+          <input
+            className="input"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="As it appears on your résumé"
+          />
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <label className="label" style={{ display: "block", marginBottom: 6 }}>Email</label>
+          <input
+            className="input"
+            required
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </div>
+        {error && (
+          <p style={{ color: "var(--color-bad)", marginBottom: 16, fontSize: "var(--text-sm)" }}>
+            {error}
+          </p>
+        )}
         <button
+          type="submit"
+          className="btn btn-primary"
           disabled={submitting || !name || !email}
-          style={{ padding: "12px 24px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontWeight: 600 }}
+          style={{ width: "100%" }}
         >
-          {submitting ? "Starting..." : "Start test"}
+          {submitting ? "Starting…" : "Begin the test  →"}
         </button>
       </form>
     </div>
