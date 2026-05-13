@@ -102,8 +102,8 @@ export default function Tutorial({ token, onContinue }) {
       <div className="wizard-header fade-in">
         <div>
           <div className="eyebrow">Lesson</div>
-          <div style={{ fontFamily: "var(--font-display)", fontSize: 22, marginTop: 4, letterSpacing: "-0.01em" }}>
-            Page {pageIdx + 1} <span className="dim"> / {PAGES.length}</span>
+          <div style={{ fontSize: 20, marginTop: 4, fontWeight: 600, letterSpacing: "-0.02em" }}>
+            Page {pageIdx + 1} <span className="dim" style={{ fontWeight: 400 }}>/ {PAGES.length}</span>
           </div>
         </div>
         <ProgressDots count={PAGES.length} active={pageIdx} />
@@ -191,7 +191,7 @@ function OverviewPage() {
         <strong>recreate TikTok dances with our model using AI</strong>. Your job is to judge the work at each step.
       </p>
 
-      <section className="card" style={{ marginTop: 16, background: "#0d0d1f", border: "1px solid #2a2a4a" }}>
+      <section className="card" style={{ marginTop: 16, background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
         <h2 style={{ marginTop: 0 }}>What this test looks like</h2>
         <p>After this lesson you'll answer a <strong>5-question comprehension check</strong>. You need 4 of 5 correct to continue — fail it and the test ends.</p>
         <p>Then you'll review three sets of 30 items, one per step:</p>
@@ -266,7 +266,7 @@ function NanoBananaPage({ manifest, manifestState }) {
       {refs.length > 0 && (
         <section className="card-accent" style={{ marginTop: 24 }}>
           <div className="eyebrow">Reference</div>
-          <h2 style={{ marginTop: 4, fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: 30 }}>
+          <h2 style={{ marginTop: 4 }}>
             This is our model
           </h2>
           <p className="muted" style={{ marginTop: 8, fontSize: "var(--text-sm)", marginBottom: 16 }}>
@@ -287,7 +287,7 @@ function NanoBananaPage({ manifest, manifestState }) {
                   width: "100%",
                   borderRadius: "var(--r-md)",
                   display: "block",
-                  border: "1px solid var(--color-border-strong)",
+                  border: "1px solid var(--border)",
                 }}
               />
             ))}
@@ -358,7 +358,7 @@ function KlingPage({ manifest, manifestState }) {
       <h3 style={{ marginTop: 20 }}>Bad examples — one of each</h3>
       <ExamplesGrid items={manifest?.kling?.bad} state={manifestState} side="bad" showLabels={true} />
 
-      <section className="card" style={{ marginTop: 40, background: "#0d0d1f", border: "1px solid #2a2a4a" }}>
+      <section className="card" style={{ marginTop: 40, background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
         <h2 style={{ marginTop: 0 }}>Before you continue</h2>
         <p>
           When you click <strong>Continue to quiz</strong>, you'll answer 5 multiple-choice questions to confirm you understood the rules.

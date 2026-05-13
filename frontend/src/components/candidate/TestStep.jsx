@@ -102,13 +102,13 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
       <header className="test-step-header">
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span className="label">Step {stepNumber(pool)} of 3</span>
-          <span style={{ fontFamily: "var(--font-display)", fontSize: 26, letterSpacing: "-0.015em" }}>
+          <span style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em" }}>
             {c.name}
           </span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
           <span className="label">Progress</span>
-          <span className="mono" style={{ fontSize: 22, color: "var(--color-accent)", letterSpacing: "0.04em" }}>
+          <span className="mono" style={{ fontSize: 20, color: "var(--text)", letterSpacing: "0", fontWeight: 500 }}>
             {String(progress + 1).padStart(2, "0")}
             <span className="dim" style={{ margin: "0 4px" }}>/</span>
             30
@@ -123,7 +123,7 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
           <h2 className="question">{c.question}</h2>
 
           <button
-            className="answer-btn btn-good"
+            className="answer-btn good"
             onClick={() => answer(true)}
             disabled={submitting}
           >
@@ -132,7 +132,7 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
           </button>
 
           <button
-            className="answer-btn btn-bad"
+            className="answer-btn bad"
             onClick={() => answer(false)}
             disabled={submitting}
           >
@@ -202,7 +202,7 @@ function NanoBananaContent({ item }) {
       {lightbox && (
         <div className="lightbox" onClick={() => setLightbox(null)}>
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <span className="label-accent" style={{ alignSelf: "flex-start" }}>{lightbox.label}</span>
+            <span className="label" style={{ alignSelf: "flex-start", color: "#FFFFFF" }}>{lightbox.label}</span>
             <img src={lightbox.src} alt="" />
           </div>
           <button className="lightbox-close" onClick={() => setLightbox(null)}>Esc · Close</button>
@@ -212,12 +212,12 @@ function NanoBananaContent({ item }) {
   );
 }
 
-function NBImage({ src, label, onZoom, accent }) {
+function NBImage({ src, label, onZoom }) {
   return (
     <div className="nb-side">
       <div className="nb-caption">
-        <span className={accent ? "label-accent" : "label"}>{label}</span>
-        <button className="btn-icon" onClick={onZoom} aria-label="Open fullscreen">⛶</button>
+        <span className="label">{label}</span>
+        <button className="btn-icon" onClick={onZoom} aria-label="Open fullscreen">⛶ Fullscreen</button>
       </div>
       <div className="media-frame">
         <img src={src} alt="" onClick={onZoom} style={{ cursor: "zoom-in" }} />

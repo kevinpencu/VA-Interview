@@ -20,9 +20,7 @@ export default function Login({ onLogin }) {
   return (
     <div className="intro-shell" style={{ maxWidth: 400 }}>
       <div className="eyebrow fade-in">VA Interview · Admin</div>
-      <h1 className="title-display fade-in-1" style={{ fontSize: 56 }}>
-        <em>Sign in</em>
-      </h1>
+      <h1 className="intro-title fade-in-1">Sign in</h1>
       <p className="muted fade-in-1" style={{ marginTop: 12, marginBottom: 32 }}>
         Manager access only.
       </p>
@@ -51,7 +49,7 @@ export default function Login({ onLogin }) {
           />
         </div>
         {error && (
-          <p style={{ color: "var(--color-bad)", marginBottom: 16, fontSize: "var(--text-sm)" }}>
+          <p style={{ color: "var(--bad)", marginBottom: 16, fontSize: "var(--text-sm)" }}>
             {error}
           </p>
         )}

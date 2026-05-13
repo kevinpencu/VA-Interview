@@ -39,7 +39,7 @@ export default function InviteModal({ token, onClose, onCreated }) {
         {!result ? (
           <>
             <div className="eyebrow">New candidate</div>
-            <h2 style={{ marginTop: 6, fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: 30, marginBottom: 18 }}>
+            <h2 style={{ marginTop: 4, marginBottom: 18 }}>
               Generate an invite
             </h2>
             <div style={{ marginBottom: 14 }}>
@@ -50,7 +50,7 @@ export default function InviteModal({ token, onClose, onCreated }) {
               <label className="label" style={{ display: "block", marginBottom: 6 }}>Candidate email <span className="dim">(label only)</span></label>
               <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="jane@example.com" />
             </div>
-            {error && <p style={{ color: "var(--color-bad)", fontSize: "var(--text-sm)", marginBottom: 12 }}>{error}</p>}
+            {error && <p style={{ color: "var(--bad)", fontSize: "var(--text-sm)", marginBottom: 12 }}>{error}</p>}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button onClick={onClose} className="btn btn-ghost">Cancel</button>
               <button onClick={go} disabled={!name || !email || submitting} className="btn btn-primary">
@@ -61,7 +61,7 @@ export default function InviteModal({ token, onClose, onCreated }) {
         ) : (
           <>
             <div className="eyebrow">Invite ready</div>
-            <h2 style={{ marginTop: 6, fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: 30, marginBottom: 8 }}>
+            <h2 style={{ marginTop: 4, marginBottom: 8 }}>
               Send this link
             </h2>
             <p className="muted" style={{ marginBottom: 16, fontSize: "var(--text-sm)" }}>

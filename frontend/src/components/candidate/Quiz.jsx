@@ -66,23 +66,25 @@ export default function Quiz({ token, onPass, onFail }) {
 
   return (
     <div className="wizard">
-      <div className="eyebrow fade-in">Quick check</div>
-      <h1 className="fade-in-1" style={{ fontSize: 48, marginBottom: 8 }}>
+      <div className="eyebrow fade-in">Comprehension check</div>
+      <h1 className="fade-in-1" style={{ marginBottom: 8 }}>
         Did you read the rules?
       </h1>
-      <p className="muted fade-in-1" style={{ marginBottom: 32 }}>
-        Five questions. Get at least four right to continue — fail and the test ends.
+      <p className="muted fade-in-1" style={{ marginBottom: 32, maxWidth: 560 }}>
+        Five questions. You need at least four correct to continue. Fail and the test ends.
       </p>
 
       {QUIZ.map((q, qi) => (
-        <div key={qi} className="card fade-in-2" style={{ marginTop: 16 }}>
-          <div style={{ display: "flex", gap: 12, alignItems: "baseline", marginBottom: 14 }}>
-            <span className="mono" style={{ color: "var(--color-accent)", fontSize: 13, minWidth: 22 }}>
+        <div key={qi} className="card fade-in-2" style={{ marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 14, alignItems: "baseline", marginBottom: 14 }}>
+            <span className="mono" style={{ color: "var(--text-muted)", fontSize: 13, minWidth: 22, fontWeight: 500 }}>
               {String(qi + 1).padStart(2, "0")}
             </span>
-            <p style={{ margin: 0, fontSize: "var(--text-lg)", color: "var(--color-text)" }}>{q.q}</p>
+            <p style={{ margin: 0, fontSize: "var(--text-lg)", fontWeight: 500, color: "var(--text)", lineHeight: 1.4 }}>
+              {q.q}
+            </p>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginLeft: 36 }}>
             {q.options.map((opt, oi) => {
               const checked = answers[qi] === oi;
               return (
@@ -92,13 +94,14 @@ export default function Quiz({ token, onPass, onFail }) {
                     display: "flex",
                     alignItems: "center",
                     gap: 12,
-                    padding: "12px 14px",
-                    borderRadius: 6,
-                    border: `1px solid ${checked ? "var(--color-accent-dim)" : "var(--color-border)"}`,
-                    background: checked ? "var(--color-accent-glow)" : "transparent",
-                    color: checked ? "var(--color-text)" : "var(--color-text-soft)",
+                    padding: "11px 14px",
+                    borderRadius: 8,
+                    border: `1px solid ${checked ? "var(--accent)" : "var(--border)"}`,
+                    background: checked ? "var(--bg-subtle)" : "var(--bg-surface)",
+                    color: "var(--text)",
                     cursor: "pointer",
-                    transition: "border-color 120ms ease, background 120ms ease, color 120ms ease",
+                    transition: "border-color 120ms ease, background 120ms ease",
+                    boxShadow: checked ? "0 0 0 3px var(--accent-tint)" : "none",
                   }}
                 >
                   <input
@@ -106,9 +109,9 @@ export default function Quiz({ token, onPass, onFail }) {
                     name={`q-${qi}`}
                     checked={checked}
                     onChange={() => set(qi, oi)}
-                    style={{ accentColor: "var(--color-accent)" }}
+                    style={{ accentColor: "var(--accent)" }}
                   />
-                  <span>{opt}</span>
+                  <span style={{ fontSize: "var(--text-base)" }}>{opt}</span>
                 </label>
               );
             })}
@@ -116,15 +119,15 @@ export default function Quiz({ token, onPass, onFail }) {
         </div>
       ))}
 
-      {error && <p style={{ color: "var(--color-bad)", marginTop: 16 }}>{error}</p>}
+      {error && <p style={{ color: "var(--bad)", marginTop: 16 }}>{error}</p>}
 
       <button
         onClick={submit}
         disabled={!allAnswered || submitting}
         className="btn btn-primary fade-in-3"
-        style={{ marginTop: 32, padding: "14px 28px" }}
+        style={{ marginTop: 32, padding: "12px 24px" }}
       >
-        {submitting ? "Submitting…" : "Submit answers  →"}
+        {submitting ? "Submitting…" : "Submit answers"}
       </button>
     </div>
   );

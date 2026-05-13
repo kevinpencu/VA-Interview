@@ -23,22 +23,21 @@ export default function Welcome({ token, onStarted }) {
 
   return (
     <div className="intro-shell">
-      <div className="eyebrow fade-in">VA Interview</div>
-      <h1 className="title-display fade-in-1">
-        Welcome.<br />
-        Let's see <em>how you'd</em><br />judge our content.
-      </h1>
+      <div className="eyebrow fade-in">VA Interview · Hiring test</div>
+      <h1 className="intro-title fade-in-1">Welcome.</h1>
+      <p className="fade-in-1" style={{ marginTop: 16, fontSize: "var(--text-lg)", color: "var(--text-soft)" }}>
+        We'll walk you through what the job is, then test you on it.
+      </p>
 
-      <div className="card-accent fade-in-2" style={{ marginTop: 40 }}>
-        <p style={{ marginBottom: 8 }}>
-          This takes about <strong>30–45 minutes</strong>. Complete it in one sitting on a desktop browser.
-        </p>
-        <p style={{ marginBottom: 0, color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
-          You can't pause or retake. Make sure your audio is on.
-        </p>
+      <div className="card fade-in-2" style={{ marginTop: 32 }}>
+        <ul style={{ margin: 0, paddingLeft: 18 }}>
+          <li><strong>30–45 minutes</strong>, one sitting, desktop only.</li>
+          <li>You <strong>can't pause or retake</strong>. Don't start unless you're ready.</li>
+          <li>Make sure your <strong>audio is on</strong>.</li>
+        </ul>
       </div>
 
-      <form onSubmit={submit} className="fade-in-3" style={{ marginTop: 40 }}>
+      <form onSubmit={submit} className="fade-in-3" style={{ marginTop: 32 }}>
         <div style={{ marginBottom: 18 }}>
           <label className="label" style={{ display: "block", marginBottom: 6 }}>Full name</label>
           <input
@@ -61,17 +60,15 @@ export default function Welcome({ token, onStarted }) {
           />
         </div>
         {error && (
-          <p style={{ color: "var(--color-bad)", marginBottom: 16, fontSize: "var(--text-sm)" }}>
-            {error}
-          </p>
+          <p style={{ color: "var(--bad)", marginBottom: 16, fontSize: "var(--text-sm)" }}>{error}</p>
         )}
         <button
           type="submit"
           className="btn btn-primary"
           disabled={submitting || !name || !email}
-          style={{ width: "100%" }}
+          style={{ width: "100%", padding: "12px 24px" }}
         >
-          {submitting ? "Starting…" : "Begin the test  →"}
+          {submitting ? "Starting…" : "Begin the test"}
         </button>
       </form>
     </div>

@@ -21,9 +21,7 @@ export default function Dashboard({ jwt }) {
       <header className="admin-topbar fade-in">
         <div className="left">
           <span className="eyebrow">VA Interview · Admin</span>
-          <h1 className="title-display" style={{ fontSize: 44, margin: 0 }}>
-            <em>Candidates</em>
-          </h1>
+          <h1 style={{ margin: 0 }}>Candidates</h1>
         </div>
         <div className="actions">
           <button
@@ -72,7 +70,7 @@ export default function Dashboard({ jwt }) {
                 <td>
                   <Link
                     to={`/admin/candidates/${r.id}`}
-                    style={{ color: "var(--color-text)", borderBottom: "1px solid var(--color-border-strong)" }}
+                    style={{ color: "var(--text)", fontWeight: 500, textDecoration: "none" }}
                   >
                     {r.candidate_name || r.invited_label || "—"}
                   </Link>
