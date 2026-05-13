@@ -502,19 +502,25 @@ button:disabled { cursor: not-allowed; }
   width: 100%;
 }
 
-/* Pair-layout: actions + reject sit in a 2-column row under the images so the
-   whole page fits in one viewport. */
-.pair-actions-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--s-6);
-  max-width: 980px;
+/* Pair-layout: actions stack centered below the images. */
+.pair-actions-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  max-width: 760px;
   margin: 0 auto;
   width: 100%;
-  align-items: start;
+  padding-top: var(--s-2);
 }
-.pair-actions-row .actions-col { max-width: unset; }
-.pair-actions-row .reject-checklist { margin-top: 0; }
+.pair-actions-stacked .question { text-align: center; }
+.pair-actions-stacked .keyboard-hint { text-align: center; }
+
+/* Yes/No buttons sit side-by-side, equal width, in either layout. */
+.answer-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
 
 .reject-checklist {
   margin-top: var(--s-4);
@@ -557,13 +563,12 @@ button:disabled { cursor: not-allowed; }
 
 .answer-btn {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   padding: 16px 18px;
   border-radius: var(--r-md);
   border: 1px solid;
-  text-align: left;
-  gap: 4px;
+  text-align: center;
   background: var(--bg-surface);
   box-shadow: var(--shadow-xs);
   transition: background 140ms ease, border-color 140ms ease, transform 80ms ease, box-shadow 140ms ease;
@@ -572,16 +577,10 @@ button:disabled { cursor: not-allowed; }
 .answer-btn:active:not(:disabled) { transform: translateY(1px); }
 .answer-btn .answer-main {
   font-family: var(--font-sans);
-  font-size: var(--text-base);
+  font-size: var(--text-lg);
   font-weight: 600;
   letter-spacing: -0.005em;
   color: var(--text);
-}
-.answer-btn .answer-sub {
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  margin-top: 2px;
 }
 
 .answer-btn.good { border-color: var(--border-strong); }

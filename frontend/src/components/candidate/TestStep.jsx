@@ -7,8 +7,8 @@ const COPY = {
     name: "TikTok screening",
     short: "TikTok",
     question: "Would you save this TikTok?",
-    yes: { label: "Yes, save it", sub: "Worth recreating" },
-    no:  { label: "No, skip", sub: "Wrong language / boring / can't recreate" },
+    yes: { label: "Yes, save it" },
+    no:  { label: "No, skip" },
     type: "video",
     rejectIf: [
       <><strong>Non-English</strong> audio or song</>,
@@ -22,8 +22,8 @@ const COPY = {
     name: "Nano-banana review",
     short: "Nano-banana",
     question: "Would you use this generation?",
-    yes: { label: "Yes, use it", sub: "Identity matches, no artifacts" },
-    no:  { label: "No, reject", sub: "Wrong identity / artifacts / off-prompt" },
+    yes: { label: "Yes, use it" },
+    no:  { label: "No, reject" },
     type: "pair",
     rejectIf: [
       <><strong>Different girl</strong> — not our model</>,
@@ -38,8 +38,8 @@ const COPY = {
     name: "Kling review",
     short: "Kling",
     question: "Did this come out well?",
-    yes: { label: "Good", sub: "Real motion, consistent face" },
-    no:  { label: "Bad", sub: "Flicker / warp / inconsistent / boring" },
+    yes: { label: "Good" },
+    no:  { label: "Bad" },
     type: "video",
     rejectIf: [
       <>Any <strong>visible bugs, artifacts, or glitches</strong></>,
@@ -141,63 +141,37 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
       <div className={`test-step-body ${isPair ? "layout-pair" : "layout-video"}`} key={item.id}>
         {isPair ? <NanoBananaContent item={item} /> : <VideoContent item={item} />}
 
-        {isPair ? (
-          <div className="pair-actions-row fade-in-1">
-            <div className="actions-col">
-              <h2 className="question">{c.question}</h2>
-              <button className="answer-btn good" onClick={() => answer(true)} disabled={submitting}>
-                <span className="answer-main">{c.yes.label}</span>
-                <span className="answer-sub">{c.yes.sub}</span>
-              </button>
-              <button className="answer-btn bad" onClick={() => answer(false)} disabled={submitting}>
-                <span className="answer-main">{c.no.label}</span>
-                <span className="answer-sub">{c.no.sub}</span>
-              </button>
-              <div className="keyboard-hint">
-                <kbd>←</kbd> reject &nbsp;·&nbsp; <kbd>→</kbd> accept
-              </div>
-            </div>
-            <div className="reject-checklist">
-              <span className="reject-label">Reject if you see</span>
-              <ul>
-                {c.rejectIf.map((entry, i) => <li key={i}>{entry}</li>)}
-              </ul>
-            </div>
-          </div>
-        ) : (
-          <div className="actions-col fade-in-1">
-            <h2 className="question">{c.question}</h2>
+        <div className={isPair ? "pair-actions-stacked fade-in-1" : "actions-col fade-in-1"}>
+          <h2 className="question">{c.question}</h2>
 
+          <div className="answer-row">
             <button
               className="answer-btn good"
               onClick={() => answer(true)}
               disabled={submitting}
             >
               <span className="answer-main">{c.yes.label}</span>
-              <span className="answer-sub">{c.yes.sub}</span>
             </button>
-
             <button
               className="answer-btn bad"
               onClick={() => answer(false)}
               disabled={submitting}
             >
               <span className="answer-main">{c.no.label}</span>
-              <span className="answer-sub">{c.no.sub}</span>
             </button>
-
-            <div className="reject-checklist">
-              <span className="reject-label">Reject if you see</span>
-              <ul>
-                {c.rejectIf.map((entry, i) => <li key={i}>{entry}</li>)}
-              </ul>
           </div>
 
-            <div className="keyboard-hint">
-              <kbd>←</kbd> reject &nbsp;·&nbsp; <kbd>→</kbd> accept
-            </div>
+          <div className="reject-checklist">
+            <span className="reject-label">Reject if you see</span>
+            <ul>
+              {c.rejectIf.map((entry, i) => <li key={i}>{entry}</li>)}
+            </ul>
           </div>
-        )}
+
+          <div className="keyboard-hint">
+            <kbd>←</kbd> reject &nbsp;·&nbsp; <kbd>→</kbd> accept
+          </div>
+        </div>
       </div>
 
       {pendingJustification && (
