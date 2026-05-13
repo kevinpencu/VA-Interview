@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { managerApi } from "../../api";
 import ItemReplay from "./ItemReplay.jsx";
+
+const POOL_LABEL = { tiktok: "TikTok", nano_banana: "Nano-banana", kling: "Kling" };
 
 export default function CandidateDetail({ jwt }) {
   const { id } = useParams();
   const [data, setData] = useState(null);
   const [replay, setReplay] = useState(null);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
   const [notes, setNotes] = useState("");
 
   const load = useCallback(async () => {
@@ -25,46 +28,85 @@ export default function CandidateDetail({ jwt }) {
     setSavingNotes(true);
     await managerApi.patchCandidate(jwt, id, { manager_notes: notes });
     setSavingNotes(false);
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 1500);
   }
 
-  if (!data) return <div style={{ padding: 32 }}>Loading…</div>;
+  if (!data) {
+    return (
+      <div className="admin-shell">
+        <p className="muted">Loading…</p>
+      </div>
+    );
+  }
   const { row, auto_fail_reasons, quiz_correct, quiz_total, tab_switches, steps, free_text_justifications, decisions } = data;
+  const recClass = { pass: "badge-pass", borderline: "badge-borderline", fail: "badge-fail" }[row.recommendation] || "badge-neutral";
 
   return (
-    <div style={{ maxWidth: 1100, margin: "32px auto", padding: 16 }}>
-      <h1>{row.candidate_name || row.invited_label}</h1>
-      <p className="muted">{row.candidate_email || row.invited_label_email}</p>
+    <div className="admin-shell">
+      <Link to="/admin" className="label" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 16, textDecoration: "none" }}>
+        ← Candidates
+      </Link>
 
-      <div style={{ display: "flex", gap: 24, marginTop: 16 }}>
-        <Stat label="Recommendation" value={row.recommendation?.toUpperCase() || "—"} />
-        <Stat label="Quiz" value={`${quiz_correct}/${quiz_total}`} />
+      <header className="admin-topbar" style={{ marginBottom: 24 }}>
+        <div className="left">
+          <span className="eyebrow">Candidate</span>
+          <h1 style={{ margin: 0 }}>{row.candidate_name || row.invited_label || "—"}</h1>
+          <p className="muted mono" style={{ margin: "4px 0 0", fontSize: 13 }}>
+            {row.candidate_email || row.invited_label_email || ""}
+          </p>
+        </div>
+        <div className="actions" style={{ alignItems: "center" }}>
+          <span className={`badge ${recClass}`} style={{ fontSize: 13, padding: "4px 12px" }}>
+            {row.recommendation ? row.recommendation.toUpperCase() : "—"}
+          </span>
+        </div>
+      </header>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+        <Stat label="Recommendation" value={row.recommendation ? row.recommendation.toUpperCase() : "—"} />
+        <Stat label="Quiz" value={`${quiz_correct} / ${quiz_total}`} />
         <Stat label="Tab switches" value={tab_switches} />
-        <Stat label="Total time" value={row.total_time_seconds ? `${Math.round(row.total_time_seconds / 60)}m` : "—"} />
+        <Stat label="Total time" value={row.total_time_seconds ? `${Math.round(row.total_time_seconds / 60)} min` : "—"} />
       </div>
 
       {auto_fail_reasons?.length > 0 && (
-        <div style={{ marginTop: 24, padding: 16, background: "#3a1f1f", borderRadius: 8, border: "1px solid #5a2a2a" }}>
-          <strong>Auto-fail reasons</strong>
-          <ul style={{ marginBottom: 0 }}>
-            {auto_fail_reasons.map((r) => <li key={r}>{r}</li>)}
+        <div style={{
+          marginTop: 24,
+          padding: 16,
+          background: "var(--bad-bg)",
+          borderRadius: "var(--r-lg)",
+          border: "1px solid var(--bad-border)",
+          borderLeft: "3px solid var(--bad)",
+        }}>
+          <strong style={{ color: "var(--bad)" }}>Auto-fail triggered</strong>
+          <ul style={{ marginTop: 8, marginBottom: 0, color: "var(--text-soft)" }}>
+            {auto_fail_reasons.map((r) => <li key={r}><code className="mono" style={{ fontSize: 13 }}>{r}</code></li>)}
           </ul>
         </div>
       )}
 
-      <h2 style={{ marginTop: 32 }}>Per-step</h2>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead><tr style={{ borderBottom: "1px solid #2a2a2a", textAlign: "left" }}>
-          <th style={th}>Step</th><th style={th}>Accuracy</th><th style={th}>Dupes</th>
-          <th style={th}>Median dwell</th><th style={th}>Duration</th>
-        </tr></thead>
+      <h2>Per-step breakdown</h2>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>Accuracy</th>
+            <th>Dupe consistency</th>
+            <th>Median dwell</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
         <tbody>
           {steps.map((s) => (
-            <tr key={s.pool} style={{ borderBottom: "1px solid #1a1a1a" }}>
-              <td style={td}>{s.pool}</td>
-              <td style={td}>{(s.accuracy * 100).toFixed(0)}%</td>
-              <td style={td}>{s.expected_duplicates === 0 ? "—" : `${s.duplicate_consistency}/${s.expected_duplicates}`}</td>
-              <td style={td}>{s.median_dwell_ms ? `${(s.median_dwell_ms / 1000).toFixed(1)}s` : "—"}</td>
-              <td style={td}>{s.duration_seconds ? `${Math.round(s.duration_seconds / 60)}m` : "—"}</td>
+            <tr key={s.pool}>
+              <td style={{ fontWeight: 500, color: "var(--text)" }}>{POOL_LABEL[s.pool] || s.pool}</td>
+              <td className="mono">{(s.accuracy * 100).toFixed(0)}%</td>
+              <td className="mono">
+                {s.expected_duplicates === 0 ? <span className="dim">—</span> : `${s.duplicate_consistency} / ${s.expected_duplicates}`}
+              </td>
+              <td className="mono">{s.median_dwell_ms ? `${(s.median_dwell_ms / 1000).toFixed(1)}s` : "—"}</td>
+              <td className="mono">{s.duration_seconds ? `${Math.round(s.duration_seconds / 60)} min` : "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -72,49 +114,88 @@ export default function CandidateDetail({ jwt }) {
 
       {free_text_justifications.length > 0 && (
         <>
-          <h2 style={{ marginTop: 32 }}>Free-text justifications</h2>
-          {free_text_justifications.map((j, i) => (
-            <div key={i} className="card" style={{ marginTop: 8 }}>
-              <span className="label">{j.pool}</span>
-              <p style={{ margin: "4px 0" }}>{j.justification}</p>
-            </div>
-          ))}
+          <h2>Free-text justifications</h2>
+          <div style={{ display: "grid", gap: 8 }}>
+            {free_text_justifications.map((j, i) => (
+              <div key={i} className="card">
+                <span className="label">{POOL_LABEL[j.pool] || j.pool}</span>
+                <p style={{ margin: "6px 0 0", color: "var(--text)" }}>{j.justification}</p>
+              </div>
+            ))}
+          </div>
         </>
       )}
 
-      <h2 style={{ marginTop: 32 }}>All decisions</h2>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead><tr style={{ borderBottom: "1px solid #2a2a2a", textAlign: "left" }}>
-          <th style={th}>Pool</th><th style={th}>#</th>
-          <th style={th}>Their answer</th><th style={th}>Correct?</th><th style={th}>Dwell</th><th></th>
-        </tr></thead>
+      <h2>All decisions</h2>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>#</th>
+            <th>Their answer</th>
+            <th>Correct?</th>
+            <th>Dwell</th>
+            <th style={{ width: 110 }}></th>
+          </tr>
+        </thead>
         <tbody>
           {decisions.map((d) => (
-            <tr key={d.id} style={{ borderBottom: "1px solid #1a1a1a", background: !d.is_correct ? "#1f0d0d" : "transparent" }}>
-              <td style={td}>{d.pool}</td>
-              <td style={td}>{d.display_index + 1}{d.is_duplicate ? "*" : ""}</td>
-              <td style={td}>{d.answer ? "Yes" : "No"}</td>
-              <td style={td}>{d.is_correct ? "✓" : "✗"}</td>
-              <td style={td}>{(d.dwell_ms / 1000).toFixed(1)}s</td>
-              <td style={td}><button onClick={() => setReplay(d)} style={{ padding: "4px 10px", background: "transparent", border: "1px solid #333", color: "#fff", borderRadius: 4 }}>Replay</button></td>
+            <tr key={d.id} style={!d.is_correct ? { background: "var(--bad-bg)" } : undefined}>
+              <td style={{ fontWeight: 500, color: "var(--text)" }}>{POOL_LABEL[d.pool] || d.pool}</td>
+              <td className="mono">
+                {d.display_index + 1}
+                {d.is_duplicate && <span className="dim" title="Duplicate of an earlier item">*</span>}
+              </td>
+              <td className="mono" style={{ fontWeight: 500 }}>{d.answer ? "Yes" : "No"}</td>
+              <td className="mono">
+                {d.is_correct
+                  ? <span style={{ color: "var(--good)", fontWeight: 600 }}>✓</span>
+                  : <span style={{ color: "var(--bad)", fontWeight: 600 }}>✗</span>}
+              </td>
+              <td className="mono dim">{(d.dwell_ms / 1000).toFixed(1)}s</td>
+              <td>
+                <button onClick={() => setReplay(d)} className="btn btn-ghost" style={{ padding: "5px 12px", fontSize: 13 }}>
+                  Replay
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <h2 style={{ marginTop: 32 }}>Manager decision</h2>
+      <h2>Your decision</h2>
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => decide("hired")} style={{ padding: "8px 16px", background: row.manager_decision === "hired" ? "#22c55e" : "transparent", color: row.manager_decision === "hired" ? "#000" : "#fff", border: "1px solid #333", borderRadius: 6 }}>Hire</button>
-        <button onClick={() => decide("rejected")} style={{ padding: "8px 16px", background: row.manager_decision === "rejected" ? "#ef4444" : "transparent", color: row.manager_decision === "rejected" ? "#000" : "#fff", border: "1px solid #333", borderRadius: 6 }}>Reject</button>
+        <button
+          onClick={() => decide("hired")}
+          className={row.manager_decision === "hired" ? "btn btn-good" : "btn btn-ghost"}
+          style={{ padding: "10px 24px", fontWeight: 600 }}
+        >
+          {row.manager_decision === "hired" ? "✓ " : ""}Hire
+        </button>
+        <button
+          onClick={() => decide("rejected")}
+          className={row.manager_decision === "rejected" ? "btn btn-bad" : "btn btn-ghost"}
+          style={{ padding: "10px 24px", fontWeight: 600 }}
+        >
+          {row.manager_decision === "rejected" ? "✓ " : ""}Reject
+        </button>
       </div>
 
-      <h2 style={{ marginTop: 32 }}>Notes</h2>
-      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4}
-        style={{ width: "100%", padding: 10, background: "#0a0a0a", color: "#fff", border: "1px solid #2a2a2a", borderRadius: 6 }} />
-      <button onClick={saveNotes} disabled={savingNotes}
-        style={{ marginTop: 8, padding: "8px 16px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontWeight: 600 }}>
-        {savingNotes ? "Saving…" : "Save notes"}
-      </button>
+      <h2>Notes</h2>
+      <textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        rows={4}
+        className="input"
+        placeholder="Private notes about this candidate (only visible to you)"
+        style={{ resize: "vertical", minHeight: 100 }}
+      />
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+        <button onClick={saveNotes} disabled={savingNotes} className="btn btn-primary" style={{ padding: "8px 18px" }}>
+          {savingNotes ? "Saving…" : "Save notes"}
+        </button>
+        {savedFlash && <span className="muted" style={{ fontSize: 13 }}>✓ Saved</span>}
+      </div>
 
       {replay && <ItemReplay jwt={jwt} decision={replay} onClose={() => setReplay(null)} />}
     </div>
@@ -123,11 +204,9 @@ export default function CandidateDetail({ jwt }) {
 
 function Stat({ label, value }) {
   return (
-    <div className="card" style={{ minWidth: 120 }}>
+    <div className="card">
       <span className="label">{label}</span>
-      <p style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>{value}</p>
+      <p style={{ margin: "6px 0 0", fontSize: 26, fontWeight: 600, color: "var(--text)", lineHeight: 1.1 }}>{value}</p>
     </div>
   );
 }
-const th = { padding: "10px 8px", fontSize: 11, textTransform: "uppercase", color: "#888" };
-const td = { padding: "10px 8px" };
