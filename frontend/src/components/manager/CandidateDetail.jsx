@@ -42,6 +42,10 @@ export default function CandidateDetail({ jwt }) {
   const { row, auto_fail_reasons, quiz_correct, quiz_total, tab_switches, steps, free_text_justifications, decisions } = data;
   const recClass = { pass: "badge-pass", borderline: "badge-borderline", fail: "badge-fail" }[row.recommendation] || "badge-neutral";
 
+  const totalCorrect = decisions.filter((d) => d.is_correct).length;
+  const totalDecisions = decisions.length;
+  const overallPct = totalDecisions ? Math.round((totalCorrect / totalDecisions) * 100) : 0;
+
   return (
     <div className="admin-shell">
       <Link to="/admin" className="label" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 16, textDecoration: "none" }}>
@@ -63,8 +67,13 @@ export default function CandidateDetail({ jwt }) {
         </div>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
         <Stat label="Recommendation" value={row.recommendation ? row.recommendation.toUpperCase() : "—"} />
+        <Stat
+          label="Overall accuracy"
+          value={totalDecisions ? `${overallPct}%` : "—"}
+          sub={totalDecisions ? `${totalCorrect} of ${totalDecisions} correct` : null}
+        />
         <Stat label="Quiz" value={`${quiz_correct} / ${quiz_total}`} />
         <Stat label="Tab switches" value={tab_switches} />
         <Stat label="Total time" value={row.total_time_seconds ? `${Math.round(row.total_time_seconds / 60)} min` : "—"} />
@@ -202,11 +211,12 @@ export default function CandidateDetail({ jwt }) {
   );
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, sub }) {
   return (
     <div className="card">
       <span className="label">{label}</span>
       <p style={{ margin: "6px 0 0", fontSize: 26, fontWeight: 600, color: "var(--text)", lineHeight: 1.1 }}>{value}</p>
+      {sub && <span className="mono dim" style={{ fontSize: 12, marginTop: 4, display: "block" }}>{sub}</span>}
     </div>
   );
 }
