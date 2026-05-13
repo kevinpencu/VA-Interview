@@ -21,6 +21,9 @@ content/
 # Brainstorm artifacts
 .superpowers/
 
+# Claude Code workspace files
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
