@@ -384,8 +384,10 @@ function ExamplesGrid({ items, state, side, showLabels }) {
     return null;
   }
 
+  const hasPairs = items.some((e) => e.type === "pair");
+
   return (
-    <div className="example-grid">
+    <div className={`example-grid${hasPairs ? " pairs" : ""}`}>
       {items.map((entry, i) => (
         <ExampleCell key={i} entry={entry} side={side} showLabel={showLabels} />
       ))}
