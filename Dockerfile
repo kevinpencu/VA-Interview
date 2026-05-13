@@ -1,7 +1,9 @@
 # ============================================================
 # Stage 1: build frontend
+# cache-bust 2026-05-14 - frontend stage was sticking on Railway
 # ============================================================
 FROM node:20-alpine AS frontend-build
+ARG BUILD_REV=2
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install --no-audit --no-fund
