@@ -20,10 +20,21 @@ export default function Dashboard({ jwt }) {
     <div style={{ maxWidth: 1100, margin: "32px auto", padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1 style={{ margin: 0 }}>Candidates</h1>
-        <button onClick={() => setShowInvite(true)}
-          style={{ padding: "8px 16px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontWeight: 600 }}>
-          + New invite
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={async () => {
+              const { token } = await managerApi.createPreviewInvite(jwt);
+              window.open(`${window.location.origin}/test/${token}`, "_blank", "noopener");
+            }}
+            title="Open a fresh candidate session in a new tab. Doesn't appear in the candidates list."
+            style={{ padding: "8px 16px", background: "transparent", color: "#fff", border: "1px solid #333", borderRadius: 6, fontWeight: 500 }}>
+            👁 Preview as candidate
+          </button>
+          <button onClick={() => setShowInvite(true)}
+            style={{ padding: "8px 16px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontWeight: 600 }}>
+            + New invite
+          </button>
+        </div>
       </div>
       {loading ? <p>Loading…</p> : (
         <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 24 }}>

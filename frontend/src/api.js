@@ -31,6 +31,7 @@ export const candidateApi = {
 
 export const managerApi = {
   createInvite: (auth, name, email) => call("POST", `/api/manager/invites`, { body: { name, email }, auth }),
+  createPreviewInvite: (auth) => call("POST", `/api/manager/preview-invite`, { auth }),
   listCandidates: (auth) => call("GET", `/api/manager/candidates`, { auth }),
   candidateDetail: (auth, id) => call("GET", `/api/manager/candidates/${id}`, { auth }),
   patchCandidate: (auth, id, patch) => call("PATCH", `/api/manager/candidates/${id}`, { body: patch, auth }),

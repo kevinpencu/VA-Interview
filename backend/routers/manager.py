@@ -46,6 +46,29 @@ def create_invite(
     )
 
 
+PREVIEW_LABEL = "__PREVIEW__"
+
+
+@router.post("/preview-invite")
+def create_preview_invite(_: dict = Depends(_require_manager)) -> dict:
+    """Create a fresh, single-shot preview invite.
+
+    Wipes all prior __PREVIEW__-labeled candidates (cascading their decisions,
+    events, and quiz answers) then inserts a single new row. Frontend builds
+    the candidate URL from its own window.location.origin so this works
+    regardless of dev/prod deployment.
+    """
+    sb = get_supabase()
+    sb.table("candidates").delete().eq("invited_label", PREVIEW_LABEL).execute()
+    token = secrets.token_urlsafe(24)
+    sb.table("candidates").insert({
+        "invite_token": token,
+        "invited_label": PREVIEW_LABEL,
+        "invited_label_email": "preview@local.test",
+    }).execute()
+    return {"token": token}
+
+
 def _row_from_candidate(c: dict, total_time_seconds: int | None) -> CandidateRow:
     return CandidateRow(
         id=c["id"],
@@ -66,7 +89,9 @@ def _row_from_candidate(c: dict, total_time_seconds: int | None) -> CandidateRow
 @router.get("/candidates", response_model=list[CandidateRow])
 def list_candidates(_: dict = Depends(_require_manager)) -> list[CandidateRow]:
     rows = (
-        get_supabase().table("candidates").select("*").order("created_at", desc=True).execute()
+        get_supabase().table("candidates").select("*")
+        .neq("invited_label", PREVIEW_LABEL)
+        .order("created_at", desc=True).execute()
     ).data or []
     out: list[CandidateRow] = []
     for c in rows:
