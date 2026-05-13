@@ -141,38 +141,63 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
       <div className={`test-step-body ${isPair ? "layout-pair" : "layout-video"}`} key={item.id}>
         {isPair ? <NanoBananaContent item={item} /> : <VideoContent item={item} />}
 
-        <div className="actions-col fade-in-1">
-          <h2 className="question">{c.question}</h2>
+        {isPair ? (
+          <div className="pair-actions-row fade-in-1">
+            <div className="actions-col">
+              <h2 className="question">{c.question}</h2>
+              <button className="answer-btn good" onClick={() => answer(true)} disabled={submitting}>
+                <span className="answer-main">{c.yes.label}</span>
+                <span className="answer-sub">{c.yes.sub}</span>
+              </button>
+              <button className="answer-btn bad" onClick={() => answer(false)} disabled={submitting}>
+                <span className="answer-main">{c.no.label}</span>
+                <span className="answer-sub">{c.no.sub}</span>
+              </button>
+              <div className="keyboard-hint">
+                <kbd>←</kbd> reject &nbsp;·&nbsp; <kbd>→</kbd> accept
+              </div>
+            </div>
+            <div className="reject-checklist">
+              <span className="reject-label">Reject if you see</span>
+              <ul>
+                {c.rejectIf.map((entry, i) => <li key={i}>{entry}</li>)}
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <div className="actions-col fade-in-1">
+            <h2 className="question">{c.question}</h2>
 
-          <button
-            className="answer-btn good"
-            onClick={() => answer(true)}
-            disabled={submitting}
-          >
-            <span className="answer-main">{c.yes.label}</span>
-            <span className="answer-sub">{c.yes.sub}</span>
-          </button>
+            <button
+              className="answer-btn good"
+              onClick={() => answer(true)}
+              disabled={submitting}
+            >
+              <span className="answer-main">{c.yes.label}</span>
+              <span className="answer-sub">{c.yes.sub}</span>
+            </button>
 
-          <button
-            className="answer-btn bad"
-            onClick={() => answer(false)}
-            disabled={submitting}
-          >
-            <span className="answer-main">{c.no.label}</span>
-            <span className="answer-sub">{c.no.sub}</span>
-          </button>
+            <button
+              className="answer-btn bad"
+              onClick={() => answer(false)}
+              disabled={submitting}
+            >
+              <span className="answer-main">{c.no.label}</span>
+              <span className="answer-sub">{c.no.sub}</span>
+            </button>
 
-          <div className="reject-checklist">
-            <span className="reject-label">Reject if you see</span>
-            <ul>
-              {c.rejectIf.map((entry, i) => <li key={i}>{entry}</li>)}
-            </ul>
+            <div className="reject-checklist">
+              <span className="reject-label">Reject if you see</span>
+              <ul>
+                {c.rejectIf.map((entry, i) => <li key={i}>{entry}</li>)}
+              </ul>
           </div>
 
-          <div className="keyboard-hint">
-            <kbd>←</kbd> reject &nbsp;·&nbsp; <kbd>→</kbd> accept
+            <div className="keyboard-hint">
+              <kbd>←</kbd> reject &nbsp;·&nbsp; <kbd>→</kbd> accept
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {pendingJustification && (

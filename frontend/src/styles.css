@@ -469,14 +469,28 @@ button:disabled { cursor: not-allowed; }
 .fullscreen-bar { display: flex; justify-content: center; }
 
 .nb-pair-row {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr;
+  display: flex;
   gap: var(--s-5);
-  align-items: start;
+  justify-content: center;
+  align-items: flex-start;
 }
-.nb-pair-row .nb-side { display: flex; flex-direction: column; gap: var(--s-2); }
+.nb-pair-row .nb-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  flex: 0 1 auto;
+  min-width: 0;
+}
 .nb-pair-row .nb-caption {
   display: flex; justify-content: space-between; align-items: center;
+}
+.nb-pair-row .media-frame { display: inline-block; max-width: 100%; }
+.nb-pair-row .media-frame img {
+  display: block;
+  max-height: 56vh;
+  max-width: 100%;
+  width: auto;
+  height: auto;
 }
 
 .actions-col {
@@ -487,7 +501,20 @@ button:disabled { cursor: not-allowed; }
   max-width: 640px;
   width: 100%;
 }
-.test-step-body.layout-pair .actions-col { margin: 0 auto; }
+
+/* Pair-layout: actions + reject sit in a 2-column row under the images so the
+   whole page fits in one viewport. */
+.pair-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-6);
+  max-width: 980px;
+  margin: 0 auto;
+  width: 100%;
+  align-items: start;
+}
+.pair-actions-row .actions-col { max-width: unset; }
+.pair-actions-row .reject-checklist { margin-top: 0; }
 
 .reject-checklist {
   margin-top: var(--s-4);
