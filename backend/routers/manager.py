@@ -90,7 +90,6 @@ def _row_from_candidate(c: dict, total_time_seconds: int | None) -> CandidateRow
 def list_candidates(_: dict = Depends(_require_manager)) -> list[CandidateRow]:
     rows = (
         get_supabase().table("candidates").select("*")
-        .neq("invited_label", PREVIEW_LABEL)
         .order("created_at", desc=True).execute()
     ).data or []
     out: list[CandidateRow] = []

@@ -65,17 +65,24 @@ export default function Dashboard({ jwt }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
+            {rows.map((r) => {
+              const isPreview = r.invited_label === "__PREVIEW__";
+              return (
+              <tr key={r.id} style={isPreview ? { opacity: 0.65 } : undefined}>
                 <td>
                   <Link
                     to={`/admin/candidates/${r.id}`}
                     style={{ color: "var(--text)", fontWeight: 500, textDecoration: "none" }}
                   >
-                    {r.candidate_name || r.invited_label || "—"}
+                    {r.candidate_name || (isPreview ? "(preview)" : r.invited_label || "—")}
                   </Link>
+                  {isPreview && (
+                    <span className="badge badge-neutral" style={{ marginLeft: 8, fontSize: 9 }}>
+                      Preview
+                    </span>
+                  )}
                   <div className="muted mono" style={{ fontSize: 11, marginTop: 2 }}>
-                    {r.candidate_email || r.invited_label_email || ""}
+                    {isPreview ? "self-test" : (r.candidate_email || r.invited_label_email || "")}
                   </div>
                 </td>
                 <td><StatusPill row={r} /></td>
@@ -90,7 +97,8 @@ export default function Dashboard({ jwt }) {
                   })}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       )}
