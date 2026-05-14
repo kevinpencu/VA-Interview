@@ -35,5 +35,6 @@ export const managerApi = {
   listCandidates: (auth) => call("GET", `/api/manager/candidates`, { auth }),
   candidateDetail: (auth, id) => call("GET", `/api/manager/candidates/${id}`, { auth }),
   patchCandidate: (auth, id, patch) => call("PATCH", `/api/manager/candidates/${id}`, { body: patch, auth }),
+  deleteCandidate: (auth, id) => call("DELETE", `/api/manager/candidates/${id}`, { auth }),
   itemSignedUrl: (auth, id) => call("GET", `/api/manager/items/${id}/signed-url`, { auth }),
 };

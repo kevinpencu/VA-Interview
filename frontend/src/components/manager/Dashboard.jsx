@@ -16,6 +16,16 @@ export default function Dashboard({ jwt }) {
 
   useEffect(() => { load(); }, [load]);
 
+  async function deleteRow(row) {
+    const who = row.candidate_name || row.invited_label || "this candidate";
+    const ok = window.confirm(
+      `Delete ${who}?\n\nThis permanently removes their record and all their decisions, events, and quiz answers. This cannot be undone.`
+    );
+    if (!ok) return;
+    await managerApi.deleteCandidate(jwt, row.id);
+    await load();
+  }
+
   return (
     <div className="admin-shell">
       <header className="admin-topbar fade-in">
@@ -62,6 +72,7 @@ export default function Dashboard({ jwt }) {
               <th>Manager</th>
               <th>Total time</th>
               <th>Invited</th>
+              <th style={{ width: 50 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -95,6 +106,34 @@ export default function Dashboard({ jwt }) {
                   {new Date(r.created_at).toLocaleDateString(undefined, {
                     month: "short", day: "numeric",
                   })}
+                </td>
+                <td>
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteRow(r); }}
+                    title="Delete candidate"
+                    style={{
+                      background: "transparent",
+                      border: "1px solid var(--border)",
+                      color: "var(--text-muted)",
+                      borderRadius: 6,
+                      padding: "4px 9px",
+                      fontSize: 13,
+                      cursor: "pointer",
+                      transition: "color 120ms ease, border-color 120ms ease, background 120ms ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "var(--bad)";
+                      e.currentTarget.style.borderColor = "var(--bad-border)";
+                      e.currentTarget.style.background = "var(--bad-bg)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "var(--text-muted)";
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    ✕
+                  </button>
                 </td>
               </tr>
               );

@@ -209,6 +209,13 @@ def candidate_detail(cid: str, _: dict = Depends(_require_manager)) -> Candidate
     )
 
 
+@router.delete("/candidates/{cid}")
+def delete_candidate(cid: str, _: dict = Depends(_require_manager)) -> dict:
+    """Delete a candidate and cascade-delete their decisions, events, and quiz answers."""
+    get_supabase().table("candidates").delete().eq("id", cid).execute()
+    return {"ok": True}
+
+
 @router.patch("/candidates/{cid}")
 def patch_candidate(cid: str, body: PatchCandidateRequest, _: dict = Depends(_require_manager)) -> dict:
     update: dict[str, Any] = {}
