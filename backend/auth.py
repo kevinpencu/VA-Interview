@@ -63,7 +63,7 @@ def verify_manager_jwt(authorization_header: str | None) -> dict:
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
 
     email = (claims.get("email") or "").lower()
-    if email != settings.manager_email:
+    if email not in settings.manager_emails:
         raise HTTPException(status_code=403, detail="Not authorized as manager")
     return claims
 

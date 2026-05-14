@@ -21,7 +21,9 @@ class Settings:
     supabase_url: str
     supabase_service_key: str
     supabase_jwt_secret: str
-    manager_email: str
+    # Tuple of lowercase emails allowed to log in as a manager.
+    # Parsed from MANAGER_EMAIL (comma-separated list).
+    manager_emails: tuple[str, ...]
     bucket_tiktoks: str
     bucket_nano_banana: str
     bucket_kling: str
@@ -31,13 +33,22 @@ class Settings:
     cors_origins: tuple[str, ...]
     cookie_secure: bool
 
+    @property
+    def manager_email(self) -> str:
+        """Back-compat: first listed manager. Useful for one-off setup scripts."""
+        return self.manager_emails[0] if self.manager_emails else ""
+
+
+def _parse_emails(raw: str) -> tuple[str, ...]:
+    return tuple(e.strip().lower() for e in raw.split(",") if e.strip())
+
 
 def load_settings() -> Settings:
     return Settings(
         supabase_url=_env("SUPABASE_URL", required=True),
         supabase_service_key=_env("SUPABASE_SERVICE_KEY", required=True),
         supabase_jwt_secret=_env("SUPABASE_JWT_SECRET", required=True),
-        manager_email=_env("MANAGER_EMAIL", required=True).lower(),
+        manager_emails=_parse_emails(_env("MANAGER_EMAIL", required=True)),
         bucket_tiktoks=_env("BUCKET_TIKTOKS", "tiktoks"),
         bucket_nano_banana=_env("BUCKET_NANO_BANANA", "nano_banana"),
         bucket_kling=_env("BUCKET_KLING", "kling"),
