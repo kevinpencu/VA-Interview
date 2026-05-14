@@ -244,6 +244,62 @@ def _next_pool(pool: str) -> str | None:
     return POOLS[idx + 1] if idx + 1 < len(POOLS) else None
 
 
+def _decision_response_from_existing(
+    prev: dict,
+    sequence: list[dict],
+    pool: str,
+    cid: str,
+) -> DecisionResponse:
+    """Reconstruct a DecisionResponse from an already-recorded decision row.
+
+    Used for idempotent retries — the candidate's first /decision succeeded
+    server-side but the response was lost, so the client retries with the
+    same item_id and we hand back the same "what's next" payload they would
+    have gotten originally.
+    """
+    decision_id = prev["id"]
+    # If the original decision was forced and still has no justification text,
+    # the client still needs to send it (idempotent justification UPDATE handles
+    # the duplicate fine).
+    needs_justification = bool(prev.get("forced_justification") and not prev.get("justification"))
+
+    progress = _step_progress(cid)
+    next_idx = progress.get(pool, 0)
+    if next_idx >= ITEMS_PER_STEP:
+        next_p = _next_pool(pool)
+        if next_p is None:
+            return DecisionResponse(
+                decision_id=decision_id,
+                needs_justification=needs_justification,
+                next=DecisionResponseNext(test_complete=True),
+            )
+        return DecisionResponse(
+            decision_id=decision_id,
+            needs_justification=needs_justification,
+            next=DecisionResponseNext(step_complete=True),
+        )
+
+    next_item_id = sequence[next_idx]["item_id"]
+    next_item_row = (
+        get_supabase().table("test_items").select("*").eq("id", next_item_id).single().execute().data
+    )
+    next_item_payload = StateResponseItem(
+        id=next_item_id,
+        storage_url=signed_url_for_item(pool, next_item_row["storage_path"]),
+        reference_url=(
+            signed_url_for_item(pool, next_item_row["reference_path"])
+            if next_item_row.get("reference_path") else None
+        ),
+        pool=pool,
+        display_index=next_idx,
+    )
+    return DecisionResponse(
+        decision_id=decision_id,
+        needs_justification=needs_justification,
+        next=DecisionResponseNext(item=next_item_payload),
+    )
+
+
 def _resolve_state(candidate: dict | None, cookie: str | None) -> StateResponse:
     if candidate is None:
         return StateResponse(state="invalid")
@@ -410,6 +466,23 @@ def decision(token: str, body: DecisionRequest, session_id: str | None = Cookie(
         raise HTTPException(404, "Unknown item")
     pool = item["pool"]
     sequence, forced = _ensure_step_started(candidate, pool)
+
+    # IDEMPOTENCY: if this (candidate, item_id) was already recorded — typically
+    # because a previous /decision succeeded server-side but its response was
+    # lost (network blip / redeploy / client retry) — return the same shape we
+    # would have returned the first time so the client can advance safely.
+    existing = (
+        get_supabase().table("candidate_decisions")
+        .select("*")
+        .eq("candidate_id", cid)
+        .eq("item_id", body.item_id)
+        .limit(1)
+        .execute()
+    ).data
+    if existing:
+        prev = existing[0]
+        return _decision_response_from_existing(prev, sequence, pool, cid)
+
     progress = _step_progress(cid)
     expected_idx = progress[pool]
     if expected_idx >= ITEMS_PER_STEP:
@@ -446,12 +519,19 @@ def decision(token: str, body: DecisionRequest, session_id: str | None = Cookie(
             }).execute()
         )
     except Exception as e:
-        # The unique constraint on (candidate_id, pool, display_index) catches
-        # double-submit races (e.g., a frontend double-click that slipped past
-        # the disabled-button guard). Return 409 cleanly instead of a 500.
         msg = str(e).lower()
         if "23505" in msg or "duplicate key" in msg or "unique" in msg:
-            raise HTTPException(409, "Decision already recorded — refresh to continue")
+            # A concurrent insert won the position. Re-read and return that.
+            existing2 = (
+                get_supabase().table("candidate_decisions")
+                .select("*")
+                .eq("candidate_id", cid)
+                .eq("item_id", body.item_id)
+                .limit(1).execute()
+            ).data
+            if existing2:
+                return _decision_response_from_existing(existing2[0], sequence, pool, cid)
+            raise HTTPException(409, "Decision conflict — please refresh")
         raise
     decision_id = inserted.data[0]["id"]
 
@@ -588,6 +668,11 @@ def submit(token: str, session_id: str | None = Cookie(default=None)) -> StateRe
     candidate = _get_candidate(token)
     if candidate is None:
         raise HTTPException(404, "Invalid invite link")
+    # IDEMPOTENT: if this candidate already submitted, return the current state.
+    # Without this, a retry after a lost response would hit verify_candidate_session
+    # and raise 410 ("Link already used") even though the test really did finish.
+    if candidate.get("submitted_at"):
+        return StateResponse(state="submitted")
     verify_candidate_session(candidate, session_id)
     cid = candidate["id"]
     progress = _step_progress(cid)

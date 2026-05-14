@@ -67,14 +67,17 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
   const [submitting, setSubmitting] = useState(false);
   const [pendingJustification, setPendingJustification] = useState(null);
   const [pendingAdvance, setPendingAdvance] = useState(null);
+  const [failedAnswer, setFailedAnswer] = useState(null); // value pending retry after persistent error
 
   useEffect(() => {
     startMs.current = performance.now();
+    setFailedAnswer(null);
   }, [item.id]);
 
   async function answer(value) {
     if (submitting || pendingJustification) return;
     setSubmitting(true);
+    setFailedAnswer(null);
     const dwell = Math.round(performance.now() - startMs.current);
     try {
       const res = await candidateApi.decision(token, {
@@ -86,6 +89,11 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
       } else {
         await onAdvance(res.next);
       }
+    } catch (e) {
+      // After ~12s of automatic retries the network is genuinely down or the
+      // server has been in trouble too long. Keep their answer choice and show
+      // a manual retry button so nothing is lost.
+      setFailedAnswer(value);
     } finally {
       setSubmitting(false);
     }
@@ -143,6 +151,32 @@ export default function TestStep({ token, pool, item, progress, onAdvance }) {
 
         <div className={isPair ? "pair-actions-stacked fade-in-1" : "actions-col fade-in-1"}>
           <h2 className="question">{c.question}</h2>
+
+          {failedAnswer !== null && (
+            <div style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              background: "var(--bad-bg)",
+              border: "1px solid var(--bad-border)",
+              borderLeft: "3px solid var(--bad)",
+              color: "var(--bad)",
+              fontSize: "var(--text-sm)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}>
+              <span>Connection issue — your answer wasn't saved. Don't worry, nothing was lost.</span>
+              <button
+                onClick={() => answer(failedAnswer)}
+                disabled={submitting}
+                className="btn btn-primary"
+                style={{ padding: "6px 14px", fontSize: 13 }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
           <div className="answer-row">
             <button
