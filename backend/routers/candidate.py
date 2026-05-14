@@ -178,7 +178,10 @@ def _ensure_step_started(candidate: dict, pool: str) -> tuple[list[dict], list[i
     sequence = list(_cached_sequence_for_session(candidate["session_id"], pool))
 
     if forced is None:
-        forced = sorted(rng.sample(range(len(sequence)), FORCED_JUSTIFICATIONS_PER_STEP))
+        # Pick 2 forced-justification positions deterministically per candidate+pool.
+        # Separate seed so it doesn't disturb the cached sequence's PRNG state.
+        forced_rng = _random.Random(f"forced:{candidate['session_id']}:{pool}")
+        forced = sorted(forced_rng.sample(range(len(sequence)), FORCED_JUSTIFICATIONS_PER_STEP))
         all_forced = candidate.get("forced_justification_indexes") or {}
         all_forced[pool] = forced
         get_supabase().table("candidates").update({
