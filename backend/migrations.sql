@@ -129,3 +129,12 @@ CREATE INDEX IF NOT EXISTS candidate_decisions_duplicate_of_idx
 ALTER TABLE test_items ADD COLUMN IF NOT EXISTS reference_path TEXT;
 ALTER TABLE test_items ADD COLUMN IF NOT EXISTS duplicate_of_item UUID REFERENCES test_items(id);
 CREATE INDEX IF NOT EXISTS test_items_duplicate_of_idx ON test_items(duplicate_of_item) WHERE duplicate_of_item IS NOT NULL;
+
+-- ============================================================
+-- v3 — prevent double-submit race on /decision
+-- ============================================================
+-- A candidate can never have two decisions at the same display position in a step.
+-- This catches the race where two concurrent /decision calls both pass the
+-- expected_idx check and both try to insert.
+CREATE UNIQUE INDEX IF NOT EXISTS candidate_decisions_unique_position
+  ON candidate_decisions(candidate_id, pool, display_index);

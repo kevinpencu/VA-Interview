@@ -1,6 +1,7 @@
 """Candidate-side endpoints: /api/test/<token>/*"""
 from __future__ import annotations
 
+import functools
 import random as _random
 import secrets
 from datetime import datetime, timezone
@@ -90,9 +91,24 @@ def _candidate_decisions_for_step(candidate_id: str, pool: str) -> list[dict]:
     return res.data or []
 
 
-def _items_for_pool(pool: str) -> list[dict]:
+@functools.lru_cache(maxsize=8)
+def _cached_items_for_pool(pool: str) -> tuple[dict, ...]:
+    """Test_items for a pool, cached process-locally. Restart server after re-seeding."""
     res = get_supabase().table("test_items").select("*").eq("pool", pool).execute()
-    return res.data or []
+    return tuple(res.data or [])
+
+
+def _items_for_pool(pool: str) -> list[dict]:
+    return list(_cached_items_for_pool(pool))
+
+
+@functools.lru_cache(maxsize=2048)
+def _cached_sequence_for_session(session_id: str, pool: str) -> tuple[dict, ...]:
+    """Deterministic per-candidate item sequence. Cached so /decision doesn't
+    rebuild + re-query test_items on every click. Each session_id is unique
+    per candidate session so the cache never replays stale data."""
+    rng = _random.Random(f"{session_id}:{pool}")
+    return tuple(_build_step_sequence(pool, rng))
 
 
 def _build_step_sequence(pool: str, rng: _random.Random) -> list[dict]:
@@ -157,10 +173,9 @@ def _ensure_step_started(candidate: dict, pool: str) -> tuple[list[dict], list[i
     cid = candidate["id"]
     forced = (candidate.get("forced_justification_indexes") or {}).get(pool)
 
-    # We rebuild the sequence from a deterministic seed each step (cheap, replayable).
-    seed = f"{candidate['session_id']}:{pool}"
-    rng = _random.Random(seed)
-    sequence = _build_step_sequence(pool, rng)
+    # Deterministic per (session_id, pool) — cached process-locally so /decision
+    # doesn't re-shuffle and re-query test_items on every click.
+    sequence = list(_cached_sequence_for_session(candidate["session_id"], pool))
 
     if forced is None:
         forced = sorted(rng.sample(range(len(sequence)), FORCED_JUSTIFICATIONS_PER_STEP))
@@ -415,20 +430,29 @@ def decision(token: str, body: DecisionRequest, session_id: str | None = Cookie(
         )
         duplicate_of = (prior or {}).get("id")
 
-    inserted = (
-        get_supabase().table("candidate_decisions").insert({
-            "candidate_id": cid,
-            "item_id": body.item_id,
-            "pool": pool,
-            "display_index": expected_idx,
-            "answer": body.answer,
-            "is_correct": is_correct,
-            "dwell_ms": body.dwell_ms,
-            "shown_at": body.shown_at.isoformat(),
-            "forced_justification": forced_now,
-            "duplicate_of": duplicate_of,
-        }).execute()
-    )
+    try:
+        inserted = (
+            get_supabase().table("candidate_decisions").insert({
+                "candidate_id": cid,
+                "item_id": body.item_id,
+                "pool": pool,
+                "display_index": expected_idx,
+                "answer": body.answer,
+                "is_correct": is_correct,
+                "dwell_ms": body.dwell_ms,
+                "shown_at": body.shown_at.isoformat(),
+                "forced_justification": forced_now,
+                "duplicate_of": duplicate_of,
+            }).execute()
+        )
+    except Exception as e:
+        # The unique constraint on (candidate_id, pool, display_index) catches
+        # double-submit races (e.g., a frontend double-click that slipped past
+        # the disabled-button guard). Return 409 cleanly instead of a 500.
+        msg = str(e).lower()
+        if "23505" in msg or "duplicate key" in msg or "unique" in msg:
+            raise HTTPException(409, "Decision already recorded — refresh to continue")
+        raise
     decision_id = inserted.data[0]["id"]
 
     # Build next response
