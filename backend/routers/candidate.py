@@ -488,11 +488,24 @@ def decision(token: str, body: DecisionRequest, session_id: str | None = Cookie(
 
     progress = _step_progress(cid)
     expected_idx = progress[pool]
+
+    def _idempotent_or_raise(detail: str):
+        """Re-check for an existing decision before failing — handles the race
+        where two parallel /decision calls both pass the first idempotency check
+        but only one wins the insert, leaving the loser at a now-stale progress."""
+        e2 = (
+            get_supabase().table("candidate_decisions")
+            .select("*").eq("candidate_id", cid).eq("item_id", body.item_id).limit(1).execute()
+        ).data
+        if e2:
+            return _decision_response_from_existing(e2[0], sequence, pool, cid)
+        raise HTTPException(409, detail)
+
     if expected_idx >= ITEMS_PER_STEP:
-        raise HTTPException(409, f"Step {pool} already complete")
+        return _idempotent_or_raise(f"Step {pool} already complete")
     expected_id = sequence[expected_idx]["item_id"]
     if expected_id != body.item_id:
-        raise HTTPException(409, f"Out of order item; expected {expected_id}")
+        return _idempotent_or_raise(f"Out of order item; expected {expected_id}")
 
     is_correct = body.answer == item["correct_answer"]
     forced_now = expected_idx in forced
